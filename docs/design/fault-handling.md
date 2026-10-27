@@ -1,6 +1,6 @@
 # D6 – Fault and event handling
 
-Status: **Agreed 2026-10-27** (open points in section 7). Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
 
 Requirements: S3.6 (explicit reset, rejected while active), S3.7 (LED priority), S4.1 / Table A (codes, one source), S5.8 (faults ≤ 100 ms), S8.10 (active faults, red banner), S8.11 (yellow/red values), S9.9 / S9.10 (fault and event log), S9.12 (PIN), S10.5 (stored ≤ 1 s, never deleted), S10.6 (±60 s snapshot), S11.7 (faults uploaded ≤ 30 s), S11.13–S11.27 (website, email by the cloud, safety never depends on it).
 
@@ -10,7 +10,7 @@ The MCU decides what a fault is. The Pi only records, shows and forwards it (S11
 
 | Source | Kind | How the Pi learns it |
 |---|---|---|
-| MCU faults E01–E19 (except E12) | FAULT or WARNING | Fault flags in every telemetry frame + a fast fault message ≤ 100 ms (S5.8) |
+| MCU faults E01–E19 (except E12) | FAULT or WARNING | `reported_faults` bitmap (bits 0–18 = E01–E19) in every TELEMETRY (1 s) and in a FAULT_UPDATE ≤ 100 ms after each raise/clear (S5.8, UART draft §4–5) |
 | E12 FAN_FAULT | WARNING | `fan_controller` (tach below expected for the set time) |
 | Link state changes | SYSTEM / `STATE_CHANGE` | `link_supervisor` (D5) |
 | System state changes (IDLE → CHARGING, …) | SYSTEM / `STATE_CHANGE` | State field in telemetry |
@@ -21,7 +21,7 @@ The MCU decides what a fault is. The Pi only records, shows and forwards it (S11
 
 ## 2. Raise and clear
 
-The **fault flags in each frame are the truth**; the fast fault message only makes the Pi react sooner (DD-34). `event_detector` keeps the set of active codes and compares each new set with it. That way a lost fault message, a duplicate, or a Pi restart cannot create a double or a missing event.
+The **complete fault bitmap in each frame is the truth** (DD-34). TELEMETRY and FAULT_UPDATE have the same 36-byte layout, so `event_detector` treats them alike: it processes every frame in arrival order and compares its bitmap with the previous one. A short fault that is raised and cleared between two TELEMETRY frames shows up in two FAULT_UPDATE frames and is logged too. A lost frame, a duplicate or a Pi restart cannot create a double or a missing event. FAULT_UPDATE frames do not go into the 1 Hz sample stream or ring buffer (they do not make old measurements fresh, UART draft §4).
 
 ```mermaid
 sequenceDiagram
@@ -36,13 +36,13 @@ sequenceDiagram
     participant UP as cloud_uploader
     participant CL as Cloud (S11)
 
-    M->>RX: fault message E05 (≤ 100 ms after detection)
+    M->>RX: FAULT_UPDATE, bitmap +E05, full measurements (≤ 100 ms)
     RX->>L: active faults += E05 (since = now)
     L-->>API: changed
     API-->>UI: SSE: state, active faults
     Note over UI: fault list (code, name, description, severity, time)<br/>red banner if Critical (S8.10), ≤ 1 s
     RX->>E: fault set changed: +E05
-    E->>E: trigger value + context from latest sample (DD-22)
+    E->>E: all values of this frame = values at report (DD-22)
     E->>W: insert event (kind FAULT, cleared_ts NULL)<br/>+ snapshot with 60 s before from ring buffer (DD-07)
     W-->>E: event id
     Note over W: written ≤ 1 s after receipt (S10.5)
@@ -53,7 +53,7 @@ sequenceDiagram
     UP->>CL: HTTPS upload (event + snapshot)
     Note over CL: website live errors, email for Critical<br/>sent by the cloud, not the Pi (S11.24)
 
-    M->>RX: telemetry, E05 flag gone
+    M->>RX: FAULT_UPDATE / TELEMETRY, E05 bit cleared
     RX->>L: active faults −= E05
     API-->>UI: SSE: fault removed, banner off
     RX->>E: fault set changed: −E05
@@ -63,9 +63,10 @@ sequenceDiagram
 
 Notes:
 
-- **Trigger value** (DD-22, S9.9 "measured value at the moment of the fault"): the Table A source file gets a `trigger_signal` column per code (E01 → highest cell group V, E02 → lowest, E03/E04 → current, E05 → highest battery temp, E16 → `t_terminal_c`, E17 → `t_air_out_c`, E12 → `fan_rpm`, …), and the Pi reads it from the sample received with the fault. If the fault message carries the measured value itself, that is used instead (DD-35, D7).
+- **Stored values** (DD-22): the event row holds all 14 signals, state and validity of the frame that raised it. The UART draft (§9) warns these are the values *at report*, not the exact trip values, so they are labelled that way.
+- **Measured value in the fault log** (S9.9, DD-35): the Table A source file gets a `trigger_signal` column per code (E01 → highest cell group V, E02 → lowest, E03/E04 → current, E05 → `t_cell_c`, E16 → `t_terminal_c`, E17 → `t_air_out_c`, E12 → `fan_rpm`, …) that picks one of the stored values for the log column.
 - **Event timestamp** = when the Pi received it (D2). If the clock is not valid, the event waits in RAM (D5 §4).
-- **Firmware and Pi version** with every fault (S1.12): two new columns `fw_version` and `app_version` on `event` (DD-36, small D2 change).
+- **Identity** with every event (DD-36): `fw_version` (from CONFIG), `app_version`, `boot_counter`, `config_revision`.
 - **Repeated faults:** every raise is a new event row; nothing is merged locally (the log is never compacted, S10.5). Counting and the email repeat window are cloud features (S11.17, S11.22).
 
 ## 3. Reconciliation (Pi start-up, reconnect, MCU restart)
@@ -119,10 +120,11 @@ sequenceDiagram
         API-->>UI: 423 locked until …
     else PIN OK
         API->>W: event FAULT_RESET "requested" (source: display or dashboard)
-        API->>TX: send reset command (request id)
-        TX->>M: RESET(request id)
-        M-->>TX: RESET_ACK(request id, accepted | rejected: fault still active)
-        TX-->>API: result (timeout 2 s → "no answer")
+        API->>TX: send reset command (request_id = last + 1, kept in core_state)
+        TX->>M: FAULT_RESET(request_id, target boot_counter, config_revision)
+        M-->>API: RESET_ACK(request_id, identity, result 0 accepted / 1 fault active / 2 identity mismatch / 3 not ready)
+        Note over API: timeout 2 s → "no answer", no automatic retry
+
         API->>W: event FAULT_RESET accepted / rejected / no answer
         API-->>UI: result shown to the user
         Note over M: latched faults clear in the next frames<br/>→ normal clear path (section 2)
@@ -130,14 +132,16 @@ sequenceDiagram
 ```
 
 - The Pi never clears a fault itself; only the MCU does, and the fault flags show it.
-- Resets with the BMS button are seen only as faults clearing. A reset source field in the telemetry would let the Pi log them too (DD-38, optional).
+- "Accepted" means the MCU passed its checks, not that outputs are on; the bitmap shows the actual result within 100 ms.
+- `request_id` is nonzero and increases; the last one is stored in `core_state` so a restarted core never reuses an id (UART draft §8 leaves the policy to the Pi).
+- Resets with the BMS button are seen only as faults clearing. A reset source field in the telemetry would let the Pi log them too (DD-38, optional, not in the UART draft). The E-stop relay reset stays physical (E7.5).
 - The dashboard on the laptop can reset (S9.12); the cloud website cannot (S11.9).
 
 ## 6. Events the Pi raises itself
 
 | Event | Condition |
 |---|---|
-| E12 FAN_FAULT | Fan duty > 0 and tach below the expected speed for the set time (S6). Cleared when the speed is back. Shown and logged like any Table A code. Not sent to the MCU (DD-39). |
+| E12 FAN_FAULT | Fan duty > 0 and RPM < `fan_speed_min_pct` (70 %) of the CONFIG table's expected RPM for `fan_fault_ms` (5 s). Disabled, shown as "fan calibration unavailable", while the CONFIG RPM calibration flag is clear. Cleared when the speed is back. Shown and logged like any Table A code (`source` = PI). Not sent to the MCU (DD-39). |
 | STATE_CHANGE | MCU state field changed, or link state changed (D5). |
 | PIN_LOCK | 5 wrong PINs. |
 | SNAPSHOT_DELETED | Size guard removed old snapshots (DD-23). |
@@ -149,14 +153,15 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 | ID | Decision |
 |---|---|
 | DD-33 | `kind` follows Table A severity: Warning → `WARNING`; Protection, Latched protection, Critical → `FAULT`. Snapshots for all `FAULT` events (DD-21). |
-| DD-34 | Fault flags in every telemetry frame are the truth; the fault message is only a fast path. `event_detector` raises and clears from the difference between consecutive fault sets. |
-| DD-35 | Trigger value from a `trigger_signal` column per code in the Table A source file, unless the fault message carries the measured value (D7). |
-| DD-36 | `event` gets `fw_version` and `app_version` columns (S1.12). Change to D2. |
+| DD-34 | (revised) Every TELEMETRY and FAULT_UPDATE carries the complete bitmap; every frame is diffed in arrival order. |
+| DD-35 | (revised) Fault log value picked from the stored frame values by a `trigger_signal` column per code; labelled "at report". |
+| DD-36 | (revised) `event` has `fw_version`, `app_version`, `boot_counter`, `config_revision`. |
 | DD-37 | On core start, reconnect and MCU restart, open events in the DB are reconciled with the first frame's fault set (section 3). Nothing is raised or cleared while OFFLINE. |
-| DD-38 | Fault reset is a request/acknowledge with a request id and 2 s timeout; requested + result are both logged. Optional: reset source in telemetry so button resets are logged too. |
-| DD-39 | E12 is detected, shown and logged only by the Pi; it is not sent to the MCU (no LED blink for E12). |
+| DD-38 | (revised) FAULT_RESET / RESET_ACK per UART draft §8, 2 s, no retry, last `request_id` persisted. |
+| DD-39 | (revised) E12 detected only by the Pi with CONFIG parameters; disabled without RPM calibration. |
 
 Open:
 
-- Fault message contents (value, reset ack, boot counter) → D7 / `/protocol`.
-- Exact "set time" for E12 detection → S6 / D4.
+- ~~Fault message contents~~: defined by the UART draft (DD-34, DD-38).
+- ~~E12 set time~~: `fan_fault_ms` from CONFIG.
+- Reset source (BMS button) in telemetry: not in the UART draft; optional request to firmware.

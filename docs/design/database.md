@@ -1,26 +1,26 @@
 # D2 – Database layout (SQLite)
 
-Status: **Agreed 2026-10-27** (open points in section 5). Builds on DD-04 (storage tiers), DD-05 (wide tables), DD-06 (UTC ISO text timestamps), DD-07 (two-stage snapshots), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without valid clock), DD-12 (WAL, `synchronous=FULL`) and DD-15 (single writer).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-36, DD-41, DD-43); open points in section 5. Builds on DD-04 (storage tiers), DD-05 (wide tables), DD-06 (UTC ISO text timestamps), DD-07 (two-stage snapshots), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without valid clock), DD-12 (WAL, `synchronous=FULL`) and DD-15 (single writer).
 
 ## 1. Signal set
 
-Every aggregate and snapshot table has the same fixed signal columns (DD-05). Column names carry the unit, so they go straight into the CSV header (S10.11, S10.13). All values are `REAL` in SI units, current positive = charging (S8.8).
+Every aggregate and snapshot table has the same fixed signal columns (DD-05). Column names carry the unit, so they go straight into the CSV header (S10.11, S10.13). All values are `REAL` in SI units, current positive = charging (S8.8). A value whose telemetry `validity` bit is 0 is stored as NULL and left out of min/avg/max (DD-41).
 
-| Signal | Column | Source |
+| Signal | Column | Source (UART draft TELEMETRY field) |
 |---|---|---|
-| Pack voltage | `pack_v` | MCU |
-| Current | `current_a` | MCU (sign inverted, S8.8) |
+| Pack voltage | `pack_v` | `pack_mV` u16 / 1000 |
+| Current | `current_a` | `pack_current` i16 × 0.01, sign inverted (wire negative = charging, S8.8) |
 | Power | `power_w` | Pi: `pack_v × current_a` |
-| Cell-group voltages | `cg1_v` … `cg4_v` | MCU |
-| Core-cell temperature (NTC1) | `t_cell_c` | MCU |
-| Terminal joint temperature (NTC2) | `t_terminal_c` | MCU |
-| Air downstream of pack (NTC3) | `t_air_out_c` | MCU |
-| Air inlet (NTC4, if fitted, E2.8) | `t_air_in_c` | MCU, NULL if not fitted |
-| SoC | `soc_pct` | MCU |
+| Cell-group voltages | `cg1_v` … `cg4_v` | `cell_mV[0..3]` / 1000 |
+| Core-cell temperature (NTC1) | `t_cell_c` | `temperature[0]` × 0.1 |
+| Terminal joint temperature (NTC2) | `t_terminal_c` | `temperature[1]` × 0.1 |
+| Air downstream of pack (NTC3) | `t_air_out_c` | `temperature[2]` × 0.1 |
+| Air inlet (NTC4, if fitted, E2.8) | `t_air_in_c` | `temperature[3]` × 0.1, NULL if not in CONFIG `ntc_present_mask` |
+| SoC | `soc_pct` | **Not in the UART draft** (D9): MCU field requested, else Pi-calculated |
 | Fan duty | `fan_duty_pct` | Pi (fan_controller) |
 | Fan speed | `fan_rpm` | Pi (tach) |
 
-That is 14 signals. Aggregate tables store `<signal>_min`, `<signal>_avg` and `<signal>_max` for each (42 columns); snapshot rows store the plain value.
+That is 14 signals. Ah/Wh per interval are integrated by the Pi from `current_a` and `pack_v` until the MCU sends cumulative counters (DD-08, D9). Aggregate tables store `<signal>_min`, `<signal>_avg` and `<signal>_max` for each (42 columns); snapshot rows store the plain value.
 
 ## 2. Entity-relationship diagram
 
@@ -54,18 +54,31 @@ erDiagram
     event {
         INTEGER id PK
         TEXT ts "UTC, when received (S10.5, within 1 s)"
-        TEXT kind "FAULT, WARNING or SYSTEM"
-        INTEGER code "Table A error code, NULL for SYSTEM"
-        TEXT severity "Table A severity, or INFO"
-        TEXT system_type "SYSTEM only: STARTUP, SHUTDOWN, STATE_CHANGE, FAULT_RESET, FW_CHANGE, TIME_INVALID, LOG_GAP, PIN_LOCK, ..."
-        REAL trigger_value "measured value that caused it"
-        TEXT trigger_unit
-        REAL SIG_context "pack_v, current_a, t_cell_c, cg min/max, soc_pct at that moment"
+        TEXT kind "FAULT, WARNING or SYSTEM (DD-20, DD-33)"
+        INTEGER code "Table A error code 1-19, NULL for SYSTEM"
+        TEXT severity "CRITICAL, PROTECTION, LATCHED, WARNING or INFO"
+        TEXT source "MCU or PI (E12, DD-39)"
+        TEXT system_type "SYSTEM only: STARTUP, SHUTDOWN, LOG_GAP, STATE_CHANGE, MCU_RESTART, CONFIG_CHANGE, CONFIG_ACCEPTED, CONFIG_REJECTED, FW_CHANGE, FAULT_RESET, TIME_INVALID, TIME_ADJUSTED, PIN_LOCK, SNAPSHOT_DELETED"
+        REAL SIG "14 signal columns from the raising frame, values at report (DD-22)"
+        TEXT state "MCU state in that frame"
+        INTEGER validity "validity bits of that frame (DD-41)"
         TEXT cleared_ts "UTC, NULL while active (S9.9)"
-        TEXT detail "free text, e.g. old -> new firmware version"
-        TEXT fw_version "MCU firmware at that moment (S1.12, DD-36)"
-        TEXT app_version "Pi app version (S1.12, DD-36)"
+        TEXT detail "free text, e.g. old -> new firmware version, reset result"
+        TEXT fw_version "from CONFIG (DD-36)"
+        TEXT app_version "Pi app version (DD-36)"
+        INTEGER boot_counter "MCU identity (DD-36)"
+        INTEGER config_revision "MCU identity (DD-36)"
         INTEGER snapshot_id FK "NULL if no snapshot"
+    }
+
+    mcu_config {
+        INTEGER boot_counter PK "UART draft CONFIG identity"
+        INTEGER config_revision PK
+        TEXT received_ts "UTC"
+        INTEGER config_schema
+        TEXT fw_version "major.minor.patch"
+        INTEGER status "CONFIG_ACK status: 0 accepted, 1-3 rejected"
+        BLOB raw "190 payload bytes, decoded by the protocol crate (DD-43)"
     }
 
     snapshot {
@@ -98,7 +111,7 @@ erDiagram
     }
 
     core_state {
-        TEXT key PK "last_fw_version, comm_error_total, soh_rest_point, energy_baseline (DD-08), ..."
+        TEXT key PK "last_alive_ts, last_boot_counter, last_config_revision, last_reset_request_id, comm_error_total, soh_rest_point, energy_baseline"
         TEXT value
     }
 
@@ -108,6 +121,7 @@ erDiagram
         TEXT last_attempt_ts
     }
 
+    mcu_config ||--o{ event : "identity at the time"
     snapshot ||--o{ event : "triggered by (1..n faults, overlap)"
     snapshot ||--|{ snapshot_sample : "contains 1 s rows"
 ```
@@ -124,7 +138,8 @@ Everything goes through `db_writer` (DD-15).
 |---|---|---|
 | `agg_10min` | aggregator | Every 10 min, on the interval boundary |
 | `agg_daily` | aggregator | 00:00 local, from the finished day's `agg_10min` rows (DD-09) |
-| `event` | event_detector, api_server (fault reset, PIN lock), clock_manager (time invalid), core start-up (start-up, log gap) | Within 1 s (S10.5); `cleared_ts` updated when the fault clears |
+| `event` | event_detector, link_supervisor (link state, MCU restart, config), api_server (fault reset, PIN lock), clock_manager (time invalid/adjusted), core start-up (start-up, log gap) | Within 1 s (S10.5); `cleared_ts` updated when the fault clears |
+| `mcu_config` | link_supervisor | Each CONFIG it validates (new identity only) |
 | `snapshot`, `snapshot_sample` | event_detector | 60 s before at once, then appended every ~10 s (DD-07) |
 | `soh` | aggregator | When a valid rest-to-rest measurement is done, at most once a day (S10.9) |
 | `setting` | api_server | PIN change, wrong attempts, lock |
@@ -155,13 +170,16 @@ Size guard: if the file passes `DB_SIZE_SOFT_LIMIT` (proposal 150 MB) the oldest
 Agreed 2026-10-27, see [decisions.md](decisions.md):
 
 - DD-20 One `event` table for faults, warnings and system events; the fault log (S9.9) and event log (S9.10) are filters on `kind`.
-- DD-21 A snapshot is taken for every `FAULT` and for every event with severity `CRITICAL`; other warnings get no snapshot.
-- DD-22 Every event stores its trigger value plus a fixed set of context values (pack voltage, current, cell temperature, min/max cell group, SoC).
+- DD-21 A snapshot is taken for every `FAULT` event (Protection, Latched protection, Critical); Warnings get no snapshot.
+- DD-22 (revised) Every MCU fault event stores all 14 signal values, state and validity of the frame that raised it (values at report).
 - DD-23 Retention: 10-min records 30 days; daily records, events and SoH kept forever; snapshots deleted oldest-first only above `DB_SIZE_SOFT_LIMIT` (proposal 150 MB). No automatic `VACUUM`.
-- DD-24 Runtime-changed settings (PIN hash, lock state) in the `setting` table; static configuration (fan table, limits, `CAP_AH`) in a TOML file in `/etc/bess/`.
+- DD-24 (revised) Limits, `CAP_AH` (CONFIG `capacity_mAh`), fan tables come only from the MCU CONFIG; `setting` holds PIN state; the TOML file holds Pi-only settings.
 - DD-25 Cloud upload uses a watermark per table instead of a queue table; cleared events are re-sent by `id`.
+- DD-36 (revised) `event` carries `fw_version`, `app_version`, `boot_counter`, `config_revision`.
+- DD-41 Invalid fields are NULL.
+- DD-43 `mcu_config` table: every CONFIG the Pi validates, with raw bytes.
 
 Open:
 
-- Fan columns (one `fan_duty_pct` + one `fan_rpm`, or one per fan): revisit with D10.
-- The configuration file: the MCU team is providing their config file (2026-10-27). Align the TOML keys, units and limits with it, and decide which values the Pi reads from the MCU at run time instead of keeping its own copy.
+- `soc_pct` and Ah/Wh: not in the UART draft telemetry (D9, DD-08).
+- Fan columns: the UART draft has one battery and one air curve with a single expected RPM per point and assumes identical fans, so one `fan_duty_pct` + one `fan_rpm` fits. Number of physical fans still with D10.

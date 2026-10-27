@@ -1,6 +1,6 @@
 # D5 – Pi app lifecycle and comm-loss state machine
 
-Status: **Agreed 2026-10-27** (open points in section 7). Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
 
 Requirements: S2.4 (config from the MCU before live values), S3.6 (fault reset from the dashboard), S3.8 (MCU reports E11 when Pi frames stop, 5 s), S5.8 (telemetry 1 s, faults ≤ 100 ms), S7.4 (full-screen within 60 s, no login), S8.9 (states + priority), S8.12 ("BMS communication lost" after 3 s), S9.10 (event log), S10.10/S10.16 (UTC, NTP + RTC), S10.17 (logging resumes ≤ 60 s, gap logged).
 
@@ -39,10 +39,15 @@ sequenceDiagram
         D->>C: connect Unix socket (retry every 1 s)
         C-->>D: SSE live stream
     end
-    M-->>C: telemetry frames (1 s)
-    C->>M: config request (until config received)
-    M-->>C: config message (limits, CAP_AH, fan table)
-    Note over D: live values shown (S2.4); target ≤ 60 s after power on (S7.4)
+    M-->>C: TELEMETRY (1 s, boot_counter + config_revision)
+    C->>M: HEARTBEAT (identity 0) + CONFIG_REQUEST, every 1 s
+    M-->>C: CONFIG (190 bytes: limits, capacity, fan tables, fw version)
+    C->>C: validate (schema, length, ranges, identity = telemetry)
+    C->>M: CONFIG_ACK (status 0 accepted)
+    C->>DB: mcu_config row, event CONFIG_ACCEPTED
+    C->>M: HEARTBEAT (accepted boot_counter + config_revision)
+    Note over M: charging no longer inhibited by missing Pi
+    Note over D: live values shown after telemetry with the same identity (S2.4); target ≤ 60 s after power on (S7.4)
 ```
 
 - **Display start (S7.4):** `bess-display.service` runs the Slint app directly on the KMS/DRM backend as a dedicated user, `WantedBy=multi-user.target`. No desktop, no login, no browser (DD-03). It does not wait for the core; it shows "Starting…" until the socket answers.
@@ -59,24 +64,25 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> OFFLINE : core start (no data yet)
 
-    OFFLINE --> WAIT_CONFIG : valid frame received\n(CRC + length OK)
-    WAIT_CONFIG --> ONLINE : valid config message
+    OFFLINE --> WAIT_CONFIG : valid frame received\n(CRC + length OK), new or\nchanged identity
+    WAIT_CONFIG --> ONLINE : CONFIG valid, CONFIG_ACK sent,\ntelemetry identity matches
     WAIT_CONFIG --> OFFLINE : no valid frame for 3 s
     ONLINE --> OFFLINE : no valid frame for 3 s (S8.12)
-    ONLINE --> WAIT_CONFIG : MCU restart detected\n(boot counter / uptime went back)
-    OFFLINE --> ONLINE : valid frame, same MCU boot\nand config still held
+    ONLINE --> WAIT_CONFIG : boot_counter or config_revision\nchanged (MCU restart / new config)
+    OFFLINE --> ONLINE : valid frame, same boot_counter\nand config_revision, config held
 
     state WAIT_CONFIG {
         [*] --> requesting
-        requesting --> requesting : send config request every 1 s
+        requesting --> requesting : CONFIG_REQUEST every 1 s
+        requesting --> rejected : CONFIG invalid →\nCONFIG_ACK status 1-3,\nCONFIG_REJECTED logged once
+        rejected --> requesting : keep requesting
     }
 
     note right of OFFLINE
         Display: "BMS communication lost",
         live values greyed (S8.12)
-        Fans: hold last duty, off after
-        FAN_OFFLINE_TIMEOUT (DD-16);
-        at start-up with no last duty:
+        Fans: per CONFIG fan_offline_action
+        (DD-16); no CONFIG yet or action 0:
         100 % (DD-28)
         No samples → ring buffer and
         aggregates get gaps (DD-10)
@@ -98,20 +104,21 @@ Rules:
 
 - **Timeout** is 3 s from the last *valid* frame, measured on the monotonic clock (not wall time, so NTP steps cannot trigger it). Frames that fail CRC or length are discarded and counted (`comm_error_total`, S5.9); they do not reset the timer.
 - **Every transition** logs a `SYSTEM` / `STATE_CHANGE` event (`detail` = `ONLINE -> OFFLINE` etc.). Repeated flapping within 10 s is logged once with a count, so a loose connector cannot flood the event log.
-- **MCU restart detection** needs a field in the telemetry frame: a boot counter or MCU uptime (DD-27). After an MCU restart the Pi re-reads the config (it may have changed) and compares the firmware version; a change logs `FW_CHANGE` (S7.5, `detail` = `1.2.0 -> 1.3.0`).
-- **Config message is the only source** of limits, `CAP_AH` and the fan table (S2.4). The Pi keeps the last valid config only in RAM. See DD-24 for what stays in the TOML file (Pi-only settings: DB limits, PIN rules, network, cloud).
+- **MCU identity** (UART draft §4): every TELEMETRY and FAULT_UPDATE carries `boot_counter` (changes on every MCU reset) and `config_revision`. A change logs `MCU_RESTART` (or `CONFIG_CHANGE`) and sends the Pi to WAIT_CONFIG. The new CONFIG carries `fw_major.minor.patch`; a change logs `FW_CHANGE` (S7.5, `detail` = `1.2.0 -> 1.3.0`).
+- **CONFIG is the only source** of limits, capacity, fan tables, fan fault and offline parameters and the 3 s timeout (`pi_data_timeout_ms`) (S2.4, DD-24). Before the first CONFIG the Pi uses 3 s. The Pi validates it as listed in UART draft §7 (schema 1, exact length, reserved bytes zero, LFP 4S3P, NTC1–3 present, 2–8 strictly increasing fan points, …). The last valid CONFIG is kept in RAM for the running identity and stored in `mcu_config` (DD-43); after a Pi restart it is always re-requested.
 
 ## 3. Pi → MCU traffic (`uart_tx`)
 
-D1 only has `uart_rx`. The requirements need the Pi to send too, so D1 gets a `uart_tx` task (DD-26):
+`uart_tx` (DD-26) sends these messages, formats per UART draft §8:
 
-| Message | When | Why |
-|---|---|---|
-| Heartbeat | Every 1 s, as long as the core runs | MCU raises E11 and stops charging after 5 s without Pi frames (S3.8). A hung core stops the heartbeat, and the MCU sees it. |
-| Config request | Every 1 s in WAIT_CONFIG | Pi may start or restart after the MCU (S2.4). |
-| Fault reset | On PIN-confirmed user action | S3.6, S9.12; see D6. |
+| Message | Id, payload | When | Why |
+|---|---|---|---|
+| HEARTBEAT | 0x10, 8 B: accepted `boot_counter`, `config_revision` (0 before acceptance) | Every 1 s while link + fan task alive | MCU raises E11 and stops charging after > 5 s without an identity-matched heartbeat (S3.8). It also keeps charging inhibited until one arrives. |
+| CONFIG_REQUEST | 0x22, empty | Every 1 s in WAIT_CONFIG | Pi may start or restart after the MCU (S2.4). |
+| CONFIG_ACK | 0x21, 9 B: identity + status (0 accepted, 1 schema, 2 content, 3 identity) | After validating a CONFIG | MCU knows which config the Pi runs. |
+| FAULT_RESET | 0x30, 12 B: `request_id`, target identity | On PIN-confirmed user action | S3.6, S9.12; see D6. |
 
-The heartbeat is sent by `uart_tx` only while `link_supervisor` and `fan_controller` are alive (each feeds a liveness flag), so a stuck fan task also stops the heartbeat and the MCU falls back to its E11 behaviour. The heartbeat can carry the current fan duty so the MCU knows what the Pi is doing (optional, D7).
+The heartbeat is sent only while `link_supervisor` and `fan_controller` are alive (each feeds a liveness flag), so a stuck fan task also stops the heartbeat and the MCU falls back to its E11 behaviour. CONFIG_REQUEST and CONFIG_ACK alone do not count as Pi health for the MCU.
 
 ## 4. Clock validity
 
@@ -158,7 +165,7 @@ The SSE stream sends a keep-alive at least every 1 s, so a silent core is notice
 
 ## 6. Shown system state (S8.9)
 
-The MCU sends IDLE, CHARGING, DISCHARGING, FAULT or ESTOP in every frame (S5.7). The Pi adds OFFLINE. Priority E-STOP > FAULT > OFFLINE > CHARGING/DISCHARGING > IDLE (DD-29):
+The MCU sends `state` in every frame (UART draft: 0 IDLE, 1 CHARGING, 2 DISCHARGING, 3 FAULT, 4 E-STOP, 5 OFFLINE). The Pi derives OFFLINE itself on link loss. Priority E-STOP > FAULT > OFFLINE > CHARGING/DISCHARGING > IDLE (DD-29):
 
 | Link | Last MCU state | Shown |
 |---|---|---|
@@ -175,9 +182,9 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 
 | ID | Decision |
 |---|---|
-| DD-26 | Add a `uart_tx` task to D1: heartbeat every 1 s, config request in WAIT_CONFIG, fault reset command. The heartbeat stops if `link_supervisor` or `fan_controller` stops, so the MCU's E11 (S3.8) also covers a hung Pi app. |
-| DD-27 | Link states OFFLINE / WAIT_CONFIG / ONLINE, 3 s timeout on the monotonic clock from the last valid frame. Telemetry carries an MCU boot counter (or uptime) so the Pi can detect an MCU restart and re-read the config. Protocol field to agree in D7. |
-| DD-28 | At start-up before any config is received, fans run at 100 % (no fan table yet, S2.4); after `FAN_OFFLINE_TIMEOUT` without a BMS they turn off (DD-16). |
+| DD-26 | (revised) `uart_tx`: HEARTBEAT with accepted identity, CONFIG_REQUEST, CONFIG_ACK, FAULT_RESET. The heartbeat stops if `link_supervisor` or `fan_controller` stops. |
+| DD-27 | (revised) Link states OFFLINE / WAIT_CONFIG / ONLINE; identity = `boot_counter` + `config_revision` from telemetry; ONLINE only after a validated, acknowledged CONFIG with matching identity. |
+| DD-28 | (revised) Before the first CONFIG, and with `fan_offline_action` 0, fans run at 100 %; without a CONFIG they stay at 100 % (no timeout known). |
 | DD-29 | Shown state when OFFLINE keeps a last-known ESTOP or FAULT (section 6). |
 | DD-30 | `core_state.last_alive_ts` written every 60 s; each start logs `LOG_GAP` with `clean` / `crash` / `power loss`. |
 | DD-31 | Clock validity from `chrony`; events from before the clock was valid wait in a RAM queue (max 100); clock steps > 2 s logged as `TIME_ADJUSTED`. |
@@ -185,5 +192,5 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 
 Open:
 
-- DD-27 field and DD-26 message formats → D7 (UART sequence diagram) and `/protocol`.
+- ~~DD-27 field and DD-26 message formats~~: defined by the UART draft (DD-40).
 - Does "Pi shutdown" (S9.12) also need a reboot action? Not in the requirements; left out.
