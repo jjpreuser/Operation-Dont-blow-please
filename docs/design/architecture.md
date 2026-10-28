@@ -33,7 +33,7 @@ flowchart LR
     CORE -. "encrypted upload, queued + retried (S10.15)" .-> CLOUD
 ```
 
-UART: 115200 8N1, binary frames `AA 55`, protocol version 0x02, CRC-16/CCITT-FALSE (UART draft, DD-40).
+UART: 115200 8N1, binary frames `AA 55`, protocol version 0x03, CRC-16/CCITT-FALSE (UART draft V2, DD-40).
 
 ## 2. Inside bess-core
 

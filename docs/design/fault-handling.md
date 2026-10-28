@@ -21,7 +21,7 @@ The MCU decides what a fault is. The Pi only records, shows and forwards it (S11
 
 ## 2. Raise and clear
 
-The **complete fault bitmap in each frame is the truth** (DD-34). TELEMETRY and FAULT_UPDATE have the same 36-byte layout, so `event_detector` treats them alike: it processes every frame in arrival order and compares its bitmap with the previous one. A short fault that is raised and cleared between two TELEMETRY frames shows up in two FAULT_UPDATE frames and is logged too. A lost frame, a duplicate or a Pi restart cannot create a double or a missing event. FAULT_UPDATE frames do not go into the 1 Hz sample stream or ring buffer (they do not make old measurements fresh, UART draft §4).
+The **complete fault bitmap in each frame is the truth** (DD-34). TELEMETRY and FAULT_UPDATE have the same 38-byte layout, so `event_detector` treats them alike: it processes every frame in arrival order and compares its bitmap with the previous one. A short fault that is raised and cleared between two TELEMETRY frames shows up in two FAULT_UPDATE frames and is logged too. A lost frame, a duplicate or a Pi restart cannot create a double or a missing event. FAULT_UPDATE frames do not go into the 1 Hz sample stream or ring buffer (they do not make old measurements fresh, UART draft §4).
 
 ```mermaid
 sequenceDiagram

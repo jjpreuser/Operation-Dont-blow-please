@@ -1,58 +1,32 @@
-# Pi review of the UART interface draft 0.4
+# Pi review of the UART interface draft V2
 
-Status: **Draft 2026-10-27**, to be agreed in the Pi team and then sent to firmware.
+Status: **Draft 2026-10-28**, to be agreed in the Pi team and then sent to firmware.
 
-From: Pi software. To: firmware (MCU STM32G071RB). About: [STM32_Pi_UART_Interface_Draft_V1.docx](../../Research/STM32_Pi_UART_Interface_Draft_V1.docx), review draft 0.4, protocol 0x02.
+From: Pi software. To: firmware (MCU STM32G071RB). About: [STM32_Pi_UART_Interface_Draft_V2.docx](../../Research/STM32_Pi_UART_Interface_Draft_V2.docx), protocol 0x03.
 
-The draft works for the Pi as it stands: framing, CONFIG handshake, identity, fault bitmap and fault reset are all implementable without changes. Request 1 below is the only one that blocks Pi features.
+Thanks for adding SoC. The Pi will implement V2 as written: protocol 0x03, TELEMETRY/FAULT_UPDATE 38 bytes, `soc_cPct` at offset 36 with validity bit 10. The Pi shows and logs the MCU's SoC and does not calculate its own (DD-44). The points below are what is still open from the Pi side.
 
-## Request 1: SoC and cumulative energy counters in TELEMETRY and FAULT_UPDATE
+No energy counters are needed from the MCU: the Pi integrates Ah and Wh per 10 minutes and per day from the 1 s telemetry itself (S10.3, S10.4).
 
-**Problem.** TELEMETRY has no state of charge and no energy counters. The Pi needs both for:
+## 1. SoH needs an SoC reference that is not Coulomb counted
 
-| Pi feature | Requirement | Needs |
-|---|---|---|
-| SoC gauge, SoC graph, SoC colouring (< 20 %, > 85 %) | S8.11, S9.4, S9.6, S10.3 | SoC |
-| Time to empty / time to full | S8.13 | SoC |
-| Ah and Wh charged/discharged per 10 min and per day, equivalent cycles | S10.3, S10.4 | energy counters |
-| SoH (Ah counted between two rest points / ΔSoC) | S10.9 | energy counters + SoC |
+S10.9 defines SoH as *Ah counted between two rest points / ΔSoC*, divided by `CAP_AH`. If ΔSoC comes from the Coulomb-counted SoC, which itself is Ah counted / `capacity_mAh`, the result is always 100 % by construction. SoH only measures something if the SoC at the two points comes from an independent reference: open-circuit voltage at rest, or a full-charge / empty reference.
 
-**Why the MCU.** The MCU already needs SoC: CONFIG carries `soc_min_cPct` / `soc_max_cPct` (E1.7). It samples current every 100 ms; the Pi only sees 1 s values. And Pi counting is lost on every Pi reboot, while an MCU counter carries on.
+LFP has a very flat OCV curve between roughly 20 % and 85 %, so OCV-based SoC is only usable near the ends. V2 §4a already lists "validated full-charge reference conditions" and "periodic correction" as TBC. Request: when the MCU re-references SoC (full-charge point or a validated OCV point), say so in TELEMETRY, e.g. a `soc_reference_counter` u8 that increments on each re-reference plus the reference type. The Pi then counts Ah between two references for SoH.
 
-**Proposed layout** (payload grows from 36 to 54 bytes, same for TELEMETRY and FAULT_UPDATE; offsets 0–35 unchanged):
+This may need a requirements change to S10.9; to be discussed with the system owner.
 
-| Offset | Field | Type | Unit or meaning |
-|---|---|---|---|
-| 36 | soc_cPct | u16 | 0.01 % (same unit as CONFIG `soc_min_cPct`) |
-| 38 | chg_mAh_total | u32 | mAh charged since MCU boot, monotonic |
-| 42 | dis_mAh_total | u32 | mAh discharged since MCU boot, monotonic |
-| 46 | chg_mWh_total | u32 | mWh charged since MCU boot, monotonic |
-| 50 | dis_mWh_total | u32 | mWh discharged since MCU boot, monotonic |
+## 2. Reset source (optional, not in V2)
 
-- **Validity:** bit 10 = SoC, bit 11 = energy counters (currently unused, so no conflict). SoC may be invalid after boot until the MCU has an estimate; the Pi then shows "N/A".
-- **Counters only need to count since MCU boot.** No flash persistence is needed: the Pi sees `boot_counter` change and takes a new baseline. Charge and discharge are separate so the Pi never has to split a net value.
-- **Range:** u32 mAh/mWh is enough for decades at 9.6 Ah / ~123 Wh.
-- **Rounding:** accumulate internally at a finer resolution and only truncate when sending, so the counters do not drift by a rounding step every 100 ms.
+A reset with the BMS button is only visible to the Pi as faults clearing. Proposal for reserved byte 27: bits 0–5 = counter of accepted resets (wraps at 64), bits 6–7 = source of the last one (1 = UART, 2 = button). Low priority.
 
-If firmware prefers, protocol version 0x03 can mark the change; the Pi will support only the agreed version.
-
-**If this is not possible:** the Pi integrates current × voltage at 1 Hz and estimates SoC itself. That loses the count on every Pi reboot, gives a second SoC that can disagree with the MCU's E1.7 limits, and makes SoH (S10.9) much less reliable.
-
-## Request 2 (optional): reset source
-
-The Pi logs fault resets it sends. A reset with the BMS button is only visible to the Pi as faults clearing. Proposal for the reserved byte 27: bits 0–5 = counter of accepted resets (wraps at 64), bits 6–7 = source of the last one (1 = UART, 2 = button). The Pi logs a `FAULT_RESET` event with the source when the counter changes.
-
-## Answers to points the draft leaves open for the Pi
+## 3. Pi answers to points V2 leaves open
 
 | Draft point | Pi position |
 |---|---|
-| `fan_offline_action` = 0 (undecided) | The Pi runs the fans at 100 % while OFFLINE. Before any valid CONFIG the Pi also runs 100 %, with no time limit. We ask firmware/system to choose the production value (1 or 2) and `fan_offline_ms`. |
-| Reset `request_id` policy (§8) | The Pi stores the last `request_id` in its database and continues from it after a restart, so it never reuses an id. Ids start at 1. |
+| `fan_offline_action` = 0 (undecided) | The Pi runs the fans at 100 % while OFFLINE. Before any valid CONFIG the Pi also runs 100 %, with no time limit. Please choose the production value (1 or 2) and `fan_offline_ms`. |
+| Reset `request_id` policy (§8, "persistent/global ID policy remains P review") | The Pi stores the last `request_id` in its database and continues from it after a restart, so it never reuses an id. Ids start at 1. |
 | Pi-origin E12 (§5) | Stays Pi-only: detected, shown and logged on the Pi, not sent to the MCU. |
 | Heartbeat health (§8) | The Pi sends HEARTBEAT only while its link task and fan control task are both running, so a hung fan task also triggers E11. |
 | Logged identity (§9) | The Pi stores firmware version, `boot_counter` and `config_revision` with every event, and every CONFIG it validates (raw bytes + ACK status). |
-
-## Editorial
-
-- The document header says "review draft 0.4", the file name says "V1". Please use one version number.
-- The draft notes requirement S7.1 still names TI/XDS110 instead of STM32/ST-LINK.
+| SoC invalid (§4a) | The Pi shows "N/A" and stores NULL while bit 10 is clear; no SoC-derived values (time to empty/full) are shown then. |

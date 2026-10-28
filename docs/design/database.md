@@ -16,11 +16,11 @@ Every aggregate and snapshot table has the same fixed signal columns (DD-05). Co
 | Terminal joint temperature (NTC2) | `t_terminal_c` | `temperature[1]` × 0.1 |
 | Air downstream of pack (NTC3) | `t_air_out_c` | `temperature[2]` × 0.1 |
 | Air inlet (NTC4, if fitted, E2.8) | `t_air_in_c` | `temperature[3]` × 0.1, NULL if not in CONFIG `ntc_present_mask` |
-| SoC | `soc_pct` | **Not in the UART draft** (D9): MCU field requested, else Pi-calculated |
+| SoC | `soc_pct` | `soc_cPct` u16 × 0.01 (MCU Coulomb counting, validity bit 10, DD-44) |
 | Fan duty | `fan_duty_pct` | Pi (fan_controller) |
 | Fan speed | `fan_rpm` | Pi (tach) |
 
-That is 14 signals. Ah/Wh per interval are integrated by the Pi from `current_a` and `pack_v` until the MCU sends cumulative counters (DD-08, D9). Aggregate tables store `<signal>_min`, `<signal>_avg` and `<signal>_max` for each (42 columns); snapshot rows store the plain value.
+That is 14 signals. Ah/Wh per interval are integrated by the Pi from `current_a` and `pack_v` of each valid 1 s sample (DD-08). Aggregate tables store `<signal>_min`, `<signal>_avg` and `<signal>_max` for each (42 columns); snapshot rows store the plain value.
 
 ## 2. Entity-relationship diagram
 
@@ -181,5 +181,4 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 
 Open:
 
-- `soc_pct` and Ah/Wh: not in the UART draft telemetry (D9, DD-08).
 - Fan columns: the UART draft has one battery and one air curve with a single expected RPM per point and assumes identical fans, so one `fan_duty_pct` + one `fan_rpm` fits. Number of physical fans still with D10.
