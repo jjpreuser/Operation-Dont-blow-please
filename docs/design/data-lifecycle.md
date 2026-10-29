@@ -127,7 +127,7 @@ flowchart TB
 
 - The user can choose a coarser resolution than the default (e.g. daily for the last week), never a finer one than exists.
 - Gaps: points are returned with their `sample_count`; the graph breaks the line where an interval is missing (DD-10).
-- **CSV** (S10.11, S10.13): UTF-8 (ASCII only in practice), comma-separated, `.` as decimal point, header row with units in the column names (`pack_v`, `t_cell_c`, … as in D2). First column `timestamp_utc` (ISO 8601, S10.10), second column `time_local` as `YYYY-MM-DD HH:MM:SS`, which Excel recognises as a date. Aggregates export `<signal>_min/_avg/_max` and `sample_count`. Streamed from a read-only connection, so a large export does not block logging.
+- **CSV** (S10.11, S10.13): UTF-8 (ASCII only in practice); format `standard` (comma-separated, `.` as decimal point) or `excel-nl` (semicolon, decimal comma), chosen on export (DD-62, [csv-excel-test.md](csv-excel-test.md)); header row with units in the column names (`pack_v`, `t_cell_c`, … as in D2). First column `timestamp_utc` (ISO 8601, S10.10), second column `time_local` as `YYYY-MM-DD HH:MM:SS`, which Excel recognises as a date. Aggregates export `<signal>_min/_avg/_max` and `sample_count`. Streamed from a read-only connection, so a large export does not block logging.
 - Snapshots are exported per fault from the fault log (1 s rows).
 
 ## 7. Cloud upload (S10.15, optional)
@@ -155,6 +155,6 @@ Proposed 2026-10-28, see [decisions.md](decisions.md):
 
 Open:
 
-- **Excel and locale (S10.13):** a Dutch-locale Excel opens a comma-separated file with `.` decimals as one column of text. Options: a `sep=,` first line (Excel only, other tools see a junk row), a semicolon/decimal-comma variant selectable on export, or instructions to use Data → From Text. To be tested on a TE laptop before choosing; parked for later (Miro card D12).
+- **Excel and locale (S10.13):** tested in Dutch-locale Excel 2026-10-29 (D12, [csv-excel-test.md](csv-excel-test.md)): the comma/`.` file opens as one column, and `sep=,` silently turns 13.284 into 13284. Proposed: two export formats, `standard` and `excel-nl` (DD-62). English-locale test on a TE laptop still to do.
 - **Backup target:** USB path and whether a USB stick is part of the cabinet build (S10.14 allows a second SD file).
 - **SoH** (`soh` table) depends on D11; not part of this flow until the method is agreed.
