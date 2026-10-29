@@ -53,7 +53,7 @@ sequenceDiagram
 - **Display start (S7.4):** `bess-display.service` runs the Slint app directly on the KMS/DRM backend as a dedicated user, `WantedBy=multi-user.target`. No desktop, no login, no browser (DD-03). It does not wait for the core; it shows "Starting…" until the socket answers.
 - **Core start:** nothing waits for the network or NTP. Migrations run before any task starts (D2).
 - **Log gap (S10.17):** the core writes `core_state.last_alive_ts` every 60 s. At start-up it logs `LOG_GAP` from that time to now, with `detail` = `clean` if the previous run logged `SHUTDOWN`, else `power loss`. If the clock is not valid yet, the event waits in memory (section 4).
-- **Shutdown** (SIGTERM, or the PIN-protected "Pi shutdown" action, S9.12): stop accepting API actions, write the open 10-min interval as a partial record (its `sample_count` shows it is partial, DD-10), finish any open snapshot with what is available, log `SHUTDOWN`, close the DB, then `systemctl poweroff`. The confirmation dialog warns that fan control stops (fallback per D10).
+- **Shutdown** (SIGTERM, or the PIN-protected "Pi shutdown" action, S9.12): stop accepting API actions, write the open 10-min interval as a partial record (its `sample_count` shows it is partial, DD-10), finish any open snapshot with what is available, log `SHUTDOWN`, close the DB, then `systemctl poweroff`. On exit the core sets the fans to 100 %; after power-off they stay at full speed (DD-59). The confirmation dialog warns that the fans will run at full speed until the Pi is started again.
 - **Crash:** no `SHUTDOWN` event; systemd restarts the core (DD-17); the next start logs `LOG_GAP` (`detail` = `crash` when `last_alive_ts` is under 2 min old and no `SHUTDOWN` came first).
 
 ## 2. BMS link state machine

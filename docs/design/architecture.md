@@ -132,4 +132,4 @@ See [decisions.md](decisions.md):
 - DD-40 `protocol` crate implements the UART draft.
 - DD-42 E-STOP → fans off.
 
-Open: fan controller hardware and fan behaviour while the core is down (D10); SoC and Ah/Wh source (D9).
+Open: SoH method (D9). Fan controller hardware and core-down fallback proposed in D10 ([fan-hardware.md](fan-hardware.md), DD-56 to DD-61).

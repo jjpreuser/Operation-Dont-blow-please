@@ -16,12 +16,12 @@ The Pi controls the fans but the battery's safety does not depend on it (S11.27)
 | `state` = E-STOP | TELEMETRY and FAULT_UPDATE | Fans off (DD-42) |
 | Link state, identity | `link_supervisor` (D5) | OFFLINE / no-CONFIG behaviour |
 | CONFIG fan fields | `mcu config` watch (DD-24) | Tables, hysteresis, `fan_min_pct`, E12 parameters, OFFLINE policy, calibration flags |
-| Tach pulses | Fan controller hardware (D10) | `fan_rpm`, E12 |
+| Tach pulses, per fan | Fan controller hardware (D10) | `fan1_rpm`, `fan2_rpm`, E12 |
 
 | Output | To |
 |---|---|
 | PWM duty 0–100 % | Fan controller hardware (D10) |
-| `fan_duty_pct`, `fan_rpm`, control reason, E12 state, "calibration unavailable" | Live state → display, dashboard, samples (D3) |
+| `fan_duty_pct`, `fan1_rpm`, `fan2_rpm`, control reason, E12 state, "calibration unavailable" | Live state → display, dashboard, samples (D3) |
 | Liveness flag | `uart_tx`: no heartbeat without it (DD-26) |
 
 CONFIG fields used (UART draft V2 §6–7): `battery_fan_on_dC` / `_off_dC` (300 / 270), `air_fan_on_dC` / `_off_dC` (350 / 320), `fan_min_pct` (30), `fan_speed_min_pct` (70), `fan_fault_ms` (5000), `fan_offline_action`, `fan_offline_ms`, `battery_fan_count` / `air_fan_count` (2–8 points), the two 8-point tables (temperature 0.1 °C, duty %, expected RPM) and `config_flags` bit 0 / bit 1 (RPM calibration valid per table).
@@ -107,7 +107,7 @@ stateDiagram-v2
     end note
 ```
 
-- **Measured speed:** tach pulses counted over the last 1 s window, converted with the pulses per revolution of the fan (D10; 2 for standard 4-wire PC fans). With several fans on one PWM line the Pi reads one tach (or the lowest, depending on D10).
+- **Measured speed:** tach pulses counted over the last 1 s window, 2 pulses per revolution. Each of the 2 fans has its own tach GPIO; each fan is checked against the expected speed, so E12 is raised when either fan is low; both speeds are stored (`fan1_rpm`, `fan2_rpm`, DD-58, [fan-hardware.md](fan-hardware.md)).
 - **Expected speed** (DD-54): from the driving table's (duty, expected RPM) points, interpolated at the commanded duty. When the duty is forced to 100 %, the 100 % point of the battery table is used (the air table if only that one is calibrated). With the calibration flag of that table clear, E12 is disabled.
 - **Spin-up:** after a duty increase the fan needs a few seconds to reach its new speed. `fan_fault_ms` (5 s) covers this (agreed 2026-10-28); verified in the fan test (M5, Miro card D13). If the test fails, the timer will restart on a duty step.
 - **Raise / clear:** E12 is a WARNING (no snapshot, DD-21). `fan_controller` puts it into the live fault set; `event_detector` merges it with the MCU bitmap and logs raise and clear like any other code (DD-34), with source `PI`. It is not sent to the MCU (DD-39). The fan duty is not changed because of E12.
@@ -126,7 +126,7 @@ Proposed 2026-10-28; DD-52 and DD-55 agreed 2026-10-28. See [decisions.md](decis
 
 Open:
 
-- **Fan controller hardware** (D10): PWM frequency, tach pulses per revolution, number of fans and tach lines, behaviour while `bess-core` is down (PWM lost → full speed, S6.7) and the thermostat set point (OI19).
-- **Production OFFLINE policy:** `fan_offline_action` 1 or 2 and `fan_offline_ms`, from firmware/system (DD-16, firmware-requests §3).
+- **Fan controller hardware:** proposed in D10 ([fan-hardware.md](fan-hardware.md), DD-56 to DD-61): EMC2101, 2 fans, tach per fan, core-down fallback. Fan model and thermostat part still open there.
+- **Production OFFLINE policy:** Pi proposes `fan_offline_action` = 2 (DD-60); waiting for firmware (DD-16, firmware-requests §3).
 - **Spin-up vs `fan_fault_ms`:** assumption agreed, test planned (Miro card D13).
 - **RPM calibration:** the expected RPM per point must be measured at commissioning (S6.6) and put into `bess_config.h`; until then E12 is disabled.

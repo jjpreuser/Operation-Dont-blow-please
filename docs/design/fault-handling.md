@@ -63,8 +63,8 @@ sequenceDiagram
 
 Notes:
 
-- **Stored values** (DD-22): the event row holds all 14 signals, state and validity of the frame that raised it. The UART draft (§9) warns these are the values *at report*, not the exact trip values, so they are labelled that way.
-- **Measured value in the fault log** (S9.9, DD-35): the Table A source file gets a `trigger_signal` column per code (E01 → highest cell group V, E02 → lowest, E03/E04 → current, E05 → `t_cell_c`, E16 → `t_terminal_c`, E17 → `t_air_out_c`, E12 → `fan_rpm`, …) that picks one of the stored values for the log column.
+- **Stored values** (DD-22): the event row holds all 15 signals, state and validity of the frame that raised it. The UART draft (§9) warns these are the values *at report*, not the exact trip values, so they are labelled that way.
+- **Measured value in the fault log** (S9.9, DD-35): the Table A source file gets a `trigger_signal` column per code (E01 → highest cell group V, E02 → lowest, E03/E04 → current, E05 → `t_cell_c`, E16 → `t_terminal_c`, E17 → `t_air_out_c`, E12 → the lower of `fan1_rpm` and `fan2_rpm`, …) that picks one of the stored values for the log column.
 - **Event timestamp** = when the Pi received it (D2). If the clock is not valid, the event waits in RAM (D5 §4).
 - **Identity** with every event (DD-36): `fw_version` (from CONFIG), `app_version`, `boot_counter`, `config_revision`.
 - **Repeated faults:** every raise is a new event row; nothing is merged locally (the log is never compacted, S10.5). Counting and the email repeat window are cloud features (S11.17, S11.22).

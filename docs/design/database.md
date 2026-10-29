@@ -1,6 +1,6 @@
 # D2 – Database layout (SQLite)
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-36, DD-41, DD-43); open points in section 5. Builds on DD-04 (storage tiers), DD-05 (wide tables), DD-06 (UTC ISO text timestamps), DD-07 (two-stage snapshots), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without valid clock), DD-12 (WAL, `synchronous=FULL`) and DD-15 (single writer).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-36, DD-41, DD-43) and on 2026-10-29 for D10 (per-fan speed `fan1_rpm`, `fan2_rpm`, DD-58); open points in section 5. Builds on DD-04 (storage tiers), DD-05 (wide tables), DD-06 (UTC ISO text timestamps), DD-07 (two-stage snapshots), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without valid clock), DD-12 (WAL, `synchronous=FULL`) and DD-15 (single writer).
 
 ## 1. Signal set
 
@@ -18,9 +18,9 @@ Every aggregate and snapshot table has the same fixed signal columns (DD-05). Co
 | Air inlet (NTC4, if fitted, E2.8) | `t_air_in_c` | `temperature[3]` × 0.1, NULL if not in CONFIG `ntc_present_mask` |
 | SoC | `soc_pct` | `soc_cPct` u16 × 0.01 (MCU Coulomb counting, validity bit 10, DD-44) |
 | Fan duty | `fan_duty_pct` | Pi (fan_controller) |
-| Fan speed | `fan_rpm` | Pi (tach) |
+| Fan speed, fan 1 / fan 2 | `fan1_rpm`, `fan2_rpm` | Pi (tach per fan, DD-58) |
 
-That is 14 signals. Ah/Wh per interval are integrated by the Pi from `current_a` and `pack_v` of each valid 1 s sample (DD-08). Aggregate tables store `<signal>_min`, `<signal>_avg` and `<signal>_max` for each (42 columns); snapshot rows store the plain value.
+That is 15 signals. Ah/Wh per interval are integrated by the Pi from `current_a` and `pack_v` of each valid 1 s sample (DD-08). Aggregate tables store `<signal>_min`, `<signal>_avg` and `<signal>_max` for each (45 columns); snapshot rows store the plain value.
 
 ## 2. Entity-relationship diagram
 
@@ -31,7 +31,7 @@ erDiagram
     agg_10min {
         TEXT ts PK "UTC start of the 10-min interval"
         INTEGER sample_count "DD-10, max 600"
-        REAL SIG_min_avg_max "42 columns, section 1"
+        REAL SIG_min_avg_max "45 columns, section 1"
         REAL ah_chg "Ah charged in interval"
         REAL ah_dis "Ah discharged in interval"
         REAL wh_chg "Wh charged in interval"
@@ -43,7 +43,7 @@ erDiagram
         TEXT ts_start "UTC, 00:00 local"
         TEXT ts_end "UTC, next 00:00 local (23/25 h on DST days)"
         INTEGER sample_count "DD-10"
-        REAL SIG_min_avg_max "42 columns, weighted by sample_count"
+        REAL SIG_min_avg_max "45 columns, weighted by sample_count"
         REAL ah_chg
         REAL ah_dis
         REAL wh_chg
@@ -59,7 +59,7 @@ erDiagram
         TEXT severity "CRITICAL, PROTECTION, LATCHED, WARNING or INFO"
         TEXT source "MCU or PI (E12, DD-39)"
         TEXT system_type "SYSTEM only: STARTUP, SHUTDOWN, LOG_GAP, STATE_CHANGE, MCU_RESTART, CONFIG_CHANGE, CONFIG_ACCEPTED, CONFIG_REJECTED, FW_CHANGE, FAULT_RESET, TIME_INVALID, TIME_ADJUSTED, PIN_LOCK, SNAPSHOT_DELETED, BACKUP_FAILED"
-        REAL SIG "14 signal columns from the raising frame, values at report (DD-22)"
+        REAL SIG "15 signal columns from the raising frame, values at report (DD-22)"
         TEXT state "MCU state in that frame"
         INTEGER validity "validity bits of that frame (DD-41)"
         TEXT cleared_ts "UTC, NULL while active (S9.9)"
@@ -92,7 +92,7 @@ erDiagram
         INTEGER snapshot_id PK, FK
         TEXT ts PK "UTC, 1 s data"
         TEXT state "IDLE, CHARGING, ... (S8.9)"
-        REAL SIG "14 columns, section 1"
+        REAL SIG "15 columns, section 1"
     }
 
     soh {
@@ -171,7 +171,7 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 
 - DD-20 One `event` table for faults, warnings and system events; the fault log (S9.9) and event log (S9.10) are filters on `kind`.
 - DD-21 A snapshot is taken for every `FAULT` event (Protection, Latched protection, Critical); Warnings get no snapshot.
-- DD-22 (revised) Every MCU fault event stores all 14 signal values, state and validity of the frame that raised it (values at report).
+- DD-22 (revised) Every MCU fault event stores all 15 signal values, state and validity of the frame that raised it (values at report).
 - DD-23 Retention: 10-min records 30 days; daily records, events and SoH kept forever; snapshots deleted oldest-first only above `DB_SIZE_SOFT_LIMIT` (proposal 150 MB). No automatic `VACUUM`.
 - DD-24 (revised) Limits, `CAP_AH` (CONFIG `capacity_mAh`), fan tables come only from the MCU CONFIG; `setting` holds PIN state; the TOML file holds Pi-only settings.
 - DD-25 Cloud upload uses a watermark per table instead of a queue table; cleared events are re-sent by `id`.
@@ -181,4 +181,4 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 
 Open:
 
-- Fan columns: the UART draft has one battery and one air curve with a single expected RPM per point and assumes identical fans, so one `fan_duty_pct` + one `fan_rpm` fits. Number of physical fans still with D10.
+- Fan columns: the UART draft has one battery and one air curve with a single expected RPM per point and assumes identical fans, so one `fan_duty_pct` fits. D10 has 2 fans with a tach each, so speed is stored per fan (`fan1_rpm`, `fan2_rpm`, DD-58, agreed 2026-10-29): a failing fan is visible in the graphs and the CSV.

@@ -24,7 +24,7 @@ A reset with the BMS button is only visible to the Pi as faults clearing. Propos
 
 | Draft point | Pi position |
 |---|---|
-| `fan_offline_action` = 0 (undecided) | The Pi runs the fans at 100 % while OFFLINE. Before any valid CONFIG the Pi also runs 100 %, with no time limit. Please choose the production value (1 or 2) and `fan_offline_ms`. |
+| `fan_offline_action` = 0 (undecided) | The Pi runs the fans at 100 % while OFFLINE. Before any valid CONFIG the Pi also runs 100 %, with no time limit. For production the Pi proposes **2 (100 % while OFFLINE)** (DD-60): while OFFLINE the Pi has no temperatures, and if only the MCU → Pi direction fails the MCU keeps charging on our heartbeats, so "hold then off" could stop the fans during charging. `fan_offline_ms` is then unused. |
 | Reset `request_id` policy (§8, "persistent/global ID policy remains P review") | The Pi stores the last `request_id` in its database and continues from it after a restart, so it never reuses an id. Ids start at 1. |
 | Pi-origin E12 (§5) | Stays Pi-only: detected, shown and logged on the Pi, not sent to the MCU. |
 | Heartbeat health (§8) | The Pi sends HEARTBEAT only while its link task and fan control task are both running, so a hung fan task also triggers E11. |

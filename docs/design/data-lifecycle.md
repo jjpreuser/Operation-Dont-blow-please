@@ -20,7 +20,7 @@ flowchart LR
     F["TELEMETRY frame\n(1 s, valid CRC)"] --> G{"link ONLINE\nand clock valid?"}
     G -- "ONLINE, clock invalid" --> R
     G -- "no (OFFLINE / WAIT_CONFIG)" --> X["not logged\n(gap, DD-10)"]
-    G -- "yes" --> S["Sample\n14 signals, invalid = NULL (DD-41)"]
+    G -- "yes" --> S["Sample\n15 signals, invalid = NULL (DD-41)"]
     S --> R["Ring buffer\n3600 × 1 s, RAM"]
     S --> A["Open 10-min interval (RAM)\nmin / sum / max per signal,\nsample_count, Ah/Wh"]
     R -- "60 s before a fault" --> SN["snapshot +\nsnapshot_sample"]
@@ -40,7 +40,7 @@ Without a valid clock (DD-11) samples still go to the ring buffer with monotonic
 - Only **TELEMETRY** frames make samples; FAULT_UPDATE frames go to `event_detector` only (D6 §2).
 - Only while the link is **ONLINE** (D5 §2). In WAIT_CONFIG there is no CONFIG yet to interpret the values (S2.4); while OFFLINE there is nothing.
 - The sample gets the Pi's **receive time** (UTC wall clock for storage, monotonic time for the ring buffer and timeouts).
-- Conversion per D2 §1. A field whose validity bit is clear is `None` / NULL (DD-41). `fan_duty_pct` and `fan_rpm` come from `fan_controller` (D4), `power_w` = `pack_v × current_a` (NULL if either is NULL).
+- Conversion per D2 §1. A field whose validity bit is clear is `None` / NULL (DD-41). `fan_duty_pct`, `fan1_rpm` and `fan2_rpm` come from `fan_controller` (D4), `power_w` = `pack_v × current_a` (NULL if either is NULL).
 
 ## 3. 10-minute aggregation (`aggregator`)
 
