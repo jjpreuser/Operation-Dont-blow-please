@@ -1,6 +1,6 @@
 # D1 – Pi software architecture
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); DD-70 and DD-71 proposed 2026-10-29 (D8 sweep: decisions in this document that had no DD); open points below. Follows DD-02 (core service + display app) and DD-03 (native Rust UI).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); DD-70 proposed and DD-71 agreed 2026-10-29 (D8 sweep: decisions in this document that had no DD; repository layout per S1.3); open points below. Follows DD-02 (core service + display app) and DD-03 (native Rust UI).
 
 ## 1. Processes and external interfaces
 
@@ -109,7 +109,7 @@ flowchart TB
 
 `uart_tx` is the only writer to the serial port (DD-70); `link_supervisor` and `api_server` send it messages. RESET_ACK goes from `uart_rx` back to the waiting `api_server` request (matched by `request_id`, 2 s timeout, DD-38).
 
-## 3. Proposed crate layout (Cargo workspace in `Pi/`)
+## 3. Proposed crate layout (Cargo workspace in `monitor/`)
 
 | Crate | Kind | Contents |
 |---|---|---|
@@ -118,7 +118,7 @@ flowchart TB
 | `bess-core` | bin | All tasks above. |
 | `bess-display` | bin | Native touchscreen UI; only talks to `bess-api` over the Unix socket. |
 
-DD-71 (proposed 2026-10-29): S1.3 asks for `/monitor` (Rust, Pi) in one repository next to `/firmware`, `/protocol` and `/docs`; this repository has `Pi/` and `docs/` only. Either this layout or S1.3 changes; to settle with firmware and the requirements owner.
+Repository layout (DD-71, agreed 2026-10-29) follows S1.3: `/monitor` (this workspace, renamed from `Pi/` on 2026-10-29), `/protocol` (UART specification, the one document for C and Rust, S5.10, with reference frames and the CONFIG validation list), `/firmware` (C, MCU) and `/docs`. `/protocol` and `/firmware` are filled once the firmware team agrees to work in this repository; until then the UART specification stays their draft in `Research/`.
 
 ## 4. Decisions
 
@@ -137,6 +137,6 @@ See [decisions.md](decisions.md):
 Proposed 2026-10-29 (D8 sweep):
 
 - DD-70 Tokio tasks plus the `db_writer` thread; state shared only through `watch` / `broadcast` / `mpsc` channels; `uart_tx` is the only serial writer.
-- DD-71 Cargo workspace in `Pi/` (section 3); S1.3 asks for `/monitor`.
+- DD-71 (agreed 2026-10-29) Repository per S1.3: `/monitor`, `/protocol`, `/firmware`, `/docs` (section 3).
 
 Open: SoH method (D9). Fan controller hardware and core-down fallback proposed in D10 ([fan-hardware.md](fan-hardware.md), DD-56 to DD-61).

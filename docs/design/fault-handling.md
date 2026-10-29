@@ -1,6 +1,6 @@
 # D6 – Fault and event handling
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); DD-66 and DD-68 proposed 2026-10-29 from the D7 review (lost frames, unknown codes); error code list (Table A) added to section 1 on 2026-10-29, with DD-69 proposed (faults shown and logged in WAIT_CONFIG); DD-81 to DD-83 proposed 2026-10-29 (D8 sweep: display and event rules that had no DD); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); DD-66 and DD-68 proposed 2026-10-29 from the D7 review (lost frames, unknown codes); error code list (Table A) added to section 1 on 2026-10-29, with DD-69 proposed (faults shown and logged in WAIT_CONFIG); DD-81 to DD-83 from the D8 sweep 2026-10-29 (DD-81 agreed: yellow levels in the TOML file; DD-82, DD-83 proposed); DD-76 agreed 2026-10-29 (a fan with E12 is switched off, the other runs at 100 %); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
 
 Requirements: S3.6 (explicit reset, rejected while active), S3.7 (LED priority), S4.1 / Table A (codes, one source), S5.8 (faults ≤ 100 ms), S8.10 (active faults, red banner), S8.11 (yellow/red values), S9.9 / S9.10 (fault and event log), S9.12 (PIN), S10.5 (stored ≤ 1 s, never deleted), S10.6 (±60 s snapshot), S11.7 (faults uploaded ≤ 30 s), S11.13–S11.27 (website, email by the cloud, safety never depends on it).
 
@@ -38,7 +38,7 @@ Severity (Table A): **Warning** = logged and shown only. **Protection** = chargi
 | E09 | TEMP_SENSOR_FAULT | Critical | A temperature sensor is open, shorted or implausible. | FAULT + snapshot | – (the stored validity bits show which sensor) | That sensor shows N/A (DD-41); NTC1 or NTC3 → its fan curve 100 % (DD-52) |
 | E10 | AFE_COMM_FAULT | Critical | MCU cannot communicate with the cell-monitoring chip (AFE). | FAULT + snapshot | – | Cell voltages and current N/A while their validity bits are clear |
 | E11 | PI_COMM_LOST | Warning | No data exchange between MCU and Raspberry Pi. | WARNING | – | The MCU does not hear the Pi for > 5 s (core down or Pi → MCU wire); charging off (S3.8) |
-| E12 | FAN_FAULT | Warning | Fan does not reach expected speed. | WARNING | lower of `fan1_rpm`, `fan2_rpm` | Pi-only, `source` = PI (DD-39, section 6) |
+| E12 | FAN_FAULT | Warning | Fan does not reach expected speed. | WARNING | lower of `fan1_rpm`, `fan2_rpm` | Pi-only, `source` = PI (DD-39, section 6); that fan switched off, the other at 100 % (DD-76) |
 | E13 | CELL_IMBALANCE | Warning | Voltage difference between cells larger than allowed. | WARNING | highest − lowest of `cg1_v`–`cg4_v` | – (MCU: > 50 mV for 10 s, S3.18) |
 | E14 | WATCHDOG_RESET | Warning | MCU was restarted by the watchdog. | WARNING | – | Kept until an accepted fault reset (UART draft §5 proposal) |
 | E15 | CONFIG_INVALID | Critical | Battery configuration failed the start-up check. Outputs stay off. | FAULT, no snapshot | – | The MCU sends no valid CONFIG, so the Pi stays in WAIT_CONFIG; shown and logged there, without a snapshot (DD-69) |
@@ -126,7 +126,7 @@ In WAIT_CONFIG it does (DD-69): the fault bitmap needs no CONFIG, and a fault th
 |---|---|
 | Active fault list | Sorted like the LED (S3.7): highest severity first, then lowest code. Shows code, name, description, severity, local time of occurrence (S8.10). |
 | Red banner | On every page while any Critical fault is active (S8.10). Stays while OFFLINE (D5 §6). |
-| Value colours | Yellow at the warning level, red at the protection limit (S8.11). Value-based, not from events (DD-81): red at the CONFIG protection limit (S2.4), yellow at the S8.11 level. A value can be red while the MCU has not tripped yet (detection delay). Open: CONFIG V2 has no warning levels, see DD-81. |
+| Value colours | Yellow at the warning level, red at the protection limit (S8.11). Value-based, not from events (DD-81): red at the CONFIG protection limit (S2.4), yellow at the S8.11 level. A value can be red while the MCU has not tripped yet (detection delay). CONFIG V2 has no warning levels, so the S8.11 yellow levels are display settings in the Pi's TOML file (DD-81). |
 | Fault log page | `event WHERE kind IN ('FAULT','WARNING')`: time, code, name, severity, trigger value + unit, cleared time; filter by severity and date, sort by column (S9.9). |
 | Event log page | `event WHERE kind = 'SYSTEM'` (S9.10). |
 | Names, descriptions, severities | Only from the generated Table A module (S4.1). The DB stores the code plus `kind` and `severity` for the fault log filters (D2); names and descriptions are looked up when shown, so all screens and the cloud use the same text (DD-82). |
@@ -175,7 +175,7 @@ sequenceDiagram
 
 | Event | Condition |
 |---|---|
-| E12 FAN_FAULT | Fan duty > 0 and RPM < `fan_speed_min_pct` (70 %) of the CONFIG table's expected RPM for `fan_fault_ms` (5 s). Disabled, shown as "fan calibration unavailable", while the CONFIG RPM calibration flag is clear. Cleared when the speed is back. Shown and logged like any Table A code (`source` = PI). Not sent to the MCU (DD-39). |
+| E12 FAN_FAULT | Fan duty > 0 and RPM < `fan_speed_min_pct` (70 %) of the CONFIG table's expected RPM for `fan_fault_ms` (5 s). Disabled, shown as "fan calibration unavailable", while the CONFIG RPM calibration flag is clear. Cleared when the speed is back. Shown and logged like any Table A code (`source` = PI). Not sent to the MCU (DD-39). The fan with E12 is switched off and the other runs at 100 %; its E12 stays active until the PIN-protected "Re-enable fan" (DD-76, DD-85). |
 | STATE_CHANGE | MCU state field changed, or link state changed (D5). |
 | PIN_LOCK | 5 wrong PINs. |
 | SNAPSHOT_DELETED | Size guard removed old snapshots (DD-23). |
@@ -208,7 +208,7 @@ Proposed 2026-10-29 (D8 sweep: display and event rules that had no DD):
 
 | ID | Decision |
 |---|---|
-| DD-81 | Value colours from the value itself: red at the CONFIG protection limit, yellow at the S8.11 warning level. Open: CONFIG V2 has no warning levels (TOML display setting or a firmware request). |
+| DD-81 | Value colours from the value itself: red at the CONFIG protection limit, yellow at the S8.11 warning level; the yellow levels are display settings in the Pi's TOML file (not in CONFIG V2). Agreed 2026-10-29. |
 | DD-82 | Events store code, `kind` and `severity`; names and descriptions come from the Table A module when shown. |
 | DD-83 | Every fault raise is a new event row; no merging or counting of repeats on the Pi (cloud feature). |
 

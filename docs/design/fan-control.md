@@ -1,6 +1,6 @@
 # D4 – Fan control
 
-Status: **Proposed 2026-10-28**, to be agreed (DD-51 to DD-55, [decisions.md](decisions.md); DD-76 added 2026-10-29 from the D8 sweep); open points in section 6. Builds on D1 ([architecture.md](architecture.md)): `fan_controller`; D5 ([lifecycle.md](lifecycle.md)): link states, heartbeat liveness (DD-26); D6 ([fault-handling.md](fault-handling.md)): E12 merged into the fault set. Decisions it relies on: DD-16 (OFFLINE behaviour from CONFIG), DD-24 (fan tables only from CONFIG), DD-28 (100 % before CONFIG and with action 0), DD-39 (E12 Pi-only), DD-41 (invalid fields), DD-42 (E-STOP → off).
+Status: **Proposed 2026-10-28**, to be agreed (DD-51 to DD-55, [decisions.md](decisions.md); DD-76 agreed 2026-10-29: a dead fan is switched off and the other runs at 100 %, details DD-85 proposed); open points in section 6. Builds on D1 ([architecture.md](architecture.md)): `fan_controller`; D5 ([lifecycle.md](lifecycle.md)): link states, heartbeat liveness (DD-26); D6 ([fault-handling.md](fault-handling.md)): E12 merged into the fault set. Decisions it relies on: DD-16 (OFFLINE behaviour from CONFIG), DD-24 (fan tables only from CONFIG), DD-28 (100 % before CONFIG and with action 0), DD-39 (E12 Pi-only), DD-41 (invalid fields), DD-42 (E-STOP → off).
 
 Requirements: S6.1 (fan control on the Pi), S6.2 (table from the MCU, linear interpolation, ≤ 8 points, duty ± 1 %), S6.3 (max of NTC1 and NTC3 tables), S6.4 (on 30 °C / off 27 °C, ≥ 30 % while on, 100 % at 45 °C), S6.5 (100 % on E05, E-stop overrides), S6.6 (E12 when speed < 70 % of expected for 5 s), S6.7 (hardware fallback, D10), S6.8 (100 % on E17), E7.7 (E-stop → fans off), S8 (fan duty and speed shown), Tables C and C2. UART draft V2 §6–7: CONFIG fan fields and tables.
 
@@ -20,7 +20,7 @@ The Pi controls the fans but the battery's safety does not depend on it (S11.27)
 
 | Output | To |
 |---|---|
-| PWM duty 0–100 % | Fan controller hardware (D10) |
+| PWM duty 0–100 %, per fan | One fan controller per fan (D10, DD-84); both get the same duty except a dead fan at 0 % (DD-76) |
 | `fan_duty_pct`, `fan1_rpm`, `fan2_rpm`, control reason, E12 state, "calibration unavailable" | Live state → display, dashboard, samples (D3) |
 | Liveness flag | `uart_tx`: no heartbeat without it (DD-26) |
 
@@ -49,13 +49,16 @@ flowchart TB
     HOLD -- "no" --> OFF2["0 % (off)\nreason OFFLINE_OFF (DD-16)"]
     LK -- "no (ONLINE)" --> FF{"E05 or E17 active?"}
     FF -- "yes" --> FULL3["100 %\nreason E05 / E17 (S6.5, S6.8)"]
-    FF -- "no" --> CUR["max(battery curve, air curve)\nreason BATTERY / AIR (section 4)"]
+    FF -- "no" --> DF{"a fan switched off\nfor E12?"}
+    DF -- "yes" --> FULL4["100 % on the other fan\nreason FAN_FAULT (DD-76, DD-85)"]
+    DF -- "no" --> CUR["max(battery curve, air curve)\nreason BATTERY / AIR (section 4)"]
 ```
 
 Notes:
 
 - **E-STOP** comes from the latest valid frame (TELEMETRY or FAULT_UPDATE), also in WAIT_CONFIG. While OFFLINE the Pi cannot know the E-stop state; the hardware E-stop forces the fans off by itself (E7.7), so the Pi follows the OFFLINE rule.
 - **E05 / E17** stay forced until the MCU clears the bit. The MCU owns the Table E recovery conditions (E05: ≤ 50 °C for 5 s; E17: NTC3 ≤ 40 °C for 5 s), so the Pi needs no own release logic.
+- **Dead fan** (DD-76, DD-85): when E12 is raised for one fan, `fan_controller` sets that fan's controller to 0 % and the other fan's to 100 % (one controller per fan, DD-84). The last running fan is never switched off: with both fans low, both stay on at 100 %. The off state is independent of the duty rules: a switched-off fan stays at 0 % in every row above until "Re-enable fan" (section 5).
 - **New identity** (MCU restart or new `config_revision`, D5 §2): the old CONFIG no longer applies, so the fans run at 100 % until the new CONFIG is accepted (DD-55). This is usually 1–2 s.
 - The control **reason** is shown on the display next to the duty ("100 % – E05 overheating", "Off – E-STOP", "100 % – waiting for BMS configuration"), so a technician can see why the fans run.
 
@@ -110,11 +113,12 @@ stateDiagram-v2
 - **Measured speed:** tach pulses counted over the last 1 s window, 2 pulses per revolution. Each of the 2 fans has its own tach GPIO; each fan is checked against the expected speed, so E12 is raised when either fan is low; both speeds are stored (`fan1_rpm`, `fan2_rpm`, DD-58, [fan-hardware.md](fan-hardware.md)).
 - **Expected speed** (DD-54): from the driving table's (duty, expected RPM) points, interpolated at the commanded duty. When the duty is forced to 100 %, the 100 % point of the battery table is used (the air table if only that one is calibrated). With the calibration flag of that table clear, E12 is disabled.
 - **Spin-up:** after a duty increase the fan needs a few seconds to reach its new speed. `fan_fault_ms` (5 s) covers this (agreed 2026-10-28); verified in the fan test (M5, Miro card D13). If the test fails, the timer will restart on a duty step.
-- **Raise / clear:** E12 is a WARNING (no snapshot, DD-21). `fan_controller` puts it into the live fault set; `event_detector` merges it with the MCU bitmap and logs raise and clear like any other code (DD-34), with source `PI`. It is not sent to the MCU (DD-39). The fan duty is not changed because of E12 (DD-76).
+- **Raise / clear:** E12 is a WARNING (no snapshot, DD-21). `fan_controller` puts it into the live fault set; `event_detector` merges it with the MCU bitmap and logs raise and clear like any other code (DD-34), with source `PI`. It is not sent to the MCU (DD-39).
+- **Dead fan off** (DD-76, DD-85): the fan with E12 is switched off and the other runs at 100 % (section 3). From then on that fan's E12 stays active and is not re-evaluated (the state machine above no longer applies to it, it reads 0 rpm by design) until the PIN-protected "Re-enable fan" action on System info (S9.12), logged as `FAN_REENABLED`; then it is monitored again from DISABLED. The off state is kept in `core_state` (`fan_off`), so a Pi restart keeps the fan off.
 
 ## 6. Decisions
 
-Proposed 2026-10-28; DD-52 and DD-55 agreed 2026-10-28; DD-76 proposed 2026-10-29 (D8 sweep). See [decisions.md](decisions.md):
+Proposed 2026-10-28; DD-52 and DD-55 agreed 2026-10-28; DD-76 agreed 2026-10-29; DD-85 proposed 2026-10-29. See [decisions.md](decisions.md):
 
 | ID | Decision |
 |---|---|
@@ -123,7 +127,8 @@ Proposed 2026-10-28; DD-52 and DD-55 agreed 2026-10-28; DD-76 proposed 2026-10-2
 | DD-53 | Each curve has its own hysteresis state; while ON the demand is at least `fan_min_pct`; outside the table the end point's duty is used; a curve starts ON when the temperature is above its off point. |
 | DD-54 | Expected RPM for E12 is interpolated at the commanded duty from the driving curve's table; forced 100 % uses the 100 % point. E12 raises after `fan_fault_ms` below `fan_speed_min_pct`, clears after `fan_fault_ms` at or above it or when the fans go below `fan_min_pct`. |
 | DD-55 | When the MCU identity changes, the old CONFIG is dropped and fans run at 100 % until the new CONFIG is accepted (extends DD-28). |
-| DD-76 | E12 does not change the fan duty; it is only shown and logged. |
+| DD-76 | When E12 is raised for one fan, that fan is switched off and the other runs at 100 %. |
+| DD-85 | Dead-fan rule after E05/E17 and before the curves; never switch off the last running fan; the fan stays off with E12 active until a PIN-protected "Re-enable fan"; off state kept in `core_state`. |
 
 Open:
 
