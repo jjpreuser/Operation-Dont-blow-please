@@ -55,10 +55,10 @@ erDiagram
         INTEGER id PK
         TEXT ts "UTC, when received (S10.5, within 1 s)"
         TEXT kind "FAULT, WARNING or SYSTEM (DD-20, DD-33)"
-        INTEGER code "Table A error code 1-19, NULL for SYSTEM"
+        INTEGER code "Table A error code 1-19 (20-32 = unknown bit, DD-68), NULL for SYSTEM"
         TEXT severity "CRITICAL, PROTECTION, LATCHED, WARNING or INFO"
         TEXT source "MCU or PI (E12, DD-39)"
-        TEXT system_type "SYSTEM only: STARTUP, SHUTDOWN, LOG_GAP, STATE_CHANGE, MCU_RESTART, CONFIG_CHANGE, CONFIG_ACCEPTED, CONFIG_REJECTED, FW_CHANGE, FAULT_RESET, TIME_INVALID, TIME_ADJUSTED, PIN_LOCK, SNAPSHOT_DELETED, BACKUP_FAILED"
+        TEXT system_type "SYSTEM only: STARTUP, SHUTDOWN, LOG_GAP, STATE_CHANGE, MCU_RESTART, CONFIG_CHANGE, CONFIG_ACCEPTED, CONFIG_REJECTED, FW_CHANGE, FAULT_RESET, TIME_INVALID, TIME_ADJUSTED, PIN_LOCK, SNAPSHOT_DELETED, BACKUP_FAILED, FAN_CTRL_RESET, FRAMES_LOST"
         REAL SIG "15 signal columns from the raising frame, values at report (DD-22)"
         TEXT state "MCU state in that frame"
         INTEGER validity "validity bits of that frame (DD-41)"
@@ -111,7 +111,7 @@ erDiagram
     }
 
     core_state {
-        TEXT key PK "last_alive_ts, last_boot_counter, last_config_revision, last_reset_request_id, comm_error_total, soh_rest_point, energy_baseline, last_backup_ts"
+        TEXT key PK "last_alive_ts, last_boot_counter, last_config_revision, last_reset_request_id, comm_error_total, frames_lost_total, soh_rest_point, energy_baseline, last_backup_ts"
         TEXT value
     }
 

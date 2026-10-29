@@ -1,6 +1,6 @@
 # D5 – Pi app lifecycle and comm-loss state machine
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); DD-69 proposed 2026-10-29 (faults shown and logged in WAIT_CONFIG, from the D6 error code list); open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
 
 Requirements: S2.4 (config from the MCU before live values), S3.6 (fault reset from the dashboard), S3.8 (MCU reports E11 when Pi frames stop, 5 s), S5.8 (telemetry 1 s, faults ≤ 100 ms), S7.4 (full-screen within 60 s, no login), S8.9 (states + priority), S8.12 ("BMS communication lost" after 3 s), S9.10 (event log), S10.10/S10.16 (UTC, NTP + RTC), S10.17 (logging resumes ≤ 60 s, gap logged).
 
@@ -89,7 +89,8 @@ stateDiagram-v2
     end note
 
     note right of WAIT_CONFIG
-        Frames are decoded and counted,
+        Frames are decoded and counted.
+        Faults are shown and logged (DD-69),
         but no live values are shown and
         no samples are logged (S2.4)
     end note
@@ -170,7 +171,8 @@ The MCU sends `state` in every frame (UART draft: 0 IDLE, 1 CHARGING, 2 DISCHARG
 | Link | Last MCU state | Shown |
 |---|---|---|
 | ONLINE | any | MCU state |
-| WAIT_CONFIG | – | OFFLINE ("Waiting for BMS configuration") |
+| WAIT_CONFIG | ESTOP or FAULT | ESTOP / FAULT with "Waiting for BMS configuration"; active faults and the red banner shown, values hidden (DD-69) |
+| WAIT_CONFIG | other | OFFLINE ("Waiting for BMS configuration"); active faults shown (DD-69) |
 | OFFLINE | ESTOP or FAULT | ESTOP / FAULT (last known), plus the "BMS communication lost" banner and greyed values |
 | OFFLINE | other | OFFLINE |
 
@@ -189,6 +191,12 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 | DD-30 | `core_state.last_alive_ts` written every 60 s; each start logs `LOG_GAP` with `clean` / `crash` / `power loss`. |
 | DD-31 | Clock validity from `chrony`; events from before the clock was valid wait in a RAM queue (max 100); clock steps > 2 s logged as `TIME_ADJUSTED`. |
 | DD-32 | Display shows "Monitor service restarting…" when the core is gone, separate from "BMS communication lost". |
+
+Proposed 2026-10-29 (from the D6 error code list, [fault-handling.md](fault-handling.md)):
+
+| ID | Decision |
+|---|---|
+| DD-69 | In WAIT_CONFIG, faults from valid frames are shown and logged as when ONLINE; measurements stay hidden and are not sampled (S2.4). Makes E15 CONFIG_INVALID visible, since the MCU then sends no valid CONFIG. |
 
 Open:
 
