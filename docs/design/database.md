@@ -182,3 +182,4 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 Open:
 
 - Fan columns: the UART draft has one battery and one air curve with a single expected RPM per point and assumes identical fans, so one `fan_duty_pct` fits. D10 has 2 fans with a tach each, so speed is stored per fan (`fan1_rpm`, `fan2_rpm`, DD-58, agreed 2026-10-29): a failing fan is visible in the graphs and the CSV.
+- `soh` table: D11 ([soh.md](soh.md) §5, DD-65, proposed 2026-10-29) replaces the rest-point columns with voltage-window columns and `core_state.soh_rest_point` with `soh_baseline`; the ERD changes once D11 is agreed.

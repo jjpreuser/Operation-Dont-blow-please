@@ -14,7 +14,7 @@ S10.9 defines SoH as *Ah counted between two rest points / ΔSoC*, divided by `C
 
 LFP has a very flat OCV curve between roughly 20 % and 85 %, so OCV-based SoC is only usable near the ends. V2 §4a already lists "validated full-charge reference conditions" and "periodic correction" as TBC. Request: when the MCU re-references SoC (full-charge point or a validated OCV point), say so in TELEMETRY, e.g. a `soc_reference_counter` u8 that increments on each re-reference plus the reference type. The Pi then counts Ah between two references for SoH.
 
-This may need a requirements change to S10.9; to be discussed with the system owner.
+Pi plan (D11, [soh.md](soh.md)): we understand the 85 % charge stop is on a pack voltage (please confirm). The Pi uses that stop as the top reference and counts the Ah from a lower voltage up to it, so the `soc_reference_counter` is not needed. Request instead: send the charge-stop voltage `V_stop` in CONFIG (and say whether it is temperature-compensated), so the Pi uses the same value as the MCU.
 
 ## 2. Reset source (optional, not in V2)
 

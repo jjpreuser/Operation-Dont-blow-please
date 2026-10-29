@@ -157,4 +157,4 @@ Open:
 
 - **Excel and locale (S10.13):** tested in Dutch-locale Excel 2026-10-29 (D12, [csv-excel-test.md](csv-excel-test.md)): the comma/`.` file opens as one column, and `sep=,` silently turns 13.284 into 13284. The same file opens correctly in English-locale Excel; agreed: CSV targets English Excel, no `sep=` line (DD-62). A Dutch-locale variant is parked.
 - **Backup target:** USB path and whether a USB stick is part of the cabinet build (S10.14 allows a second SD file).
-- **SoH** (`soh` table) depends on D11; not part of this flow until the method is agreed.
+- **SoH** (`soh` table): method proposed in D11 ([soh.md](soh.md), DD-63 to DD-65): Ah charged from `V_low` up to the BMS charge-stop voltage during the 8 A charge, computed by `aggregator` from the 1 s samples; not agreed yet.
