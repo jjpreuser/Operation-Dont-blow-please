@@ -1,6 +1,6 @@
 # D6 – Fault and event handling
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); DD-66 and DD-68 proposed 2026-10-29 from the D7 review (lost frames, unknown codes); error code list (Table A) added to section 1 on 2026-10-29, with DD-69 proposed (faults shown and logged in WAIT_CONFIG); DD-81 to DD-83 from the D8 sweep 2026-10-29 (DD-81 agreed: yellow levels in the TOML file; DD-82, DD-83 proposed); DD-76 agreed 2026-10-29 (a fan with E12 is switched off, the other runs at 100 %); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); **in review since 2026-10-29** for the decisions proposed that day: DD-66 and DD-68 from the D7 review (lost frames, unknown codes), DD-69 with the error code list (Table A) added to section 1 (faults shown and logged in WAIT_CONFIG), DD-82 and DD-83 from the D8 sweep; also from the D8 sweep DD-81 (agreed 2026-10-29: yellow levels in the TOML file); DD-76 agreed 2026-10-29 (a fan with E12 is switched off, the other runs at 100 %); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
 
 Requirements: S3.6 (explicit reset, rejected while active), S3.7 (LED priority), S4.1 / Table A (codes, one source), S5.8 (faults ≤ 100 ms), S8.10 (active faults, red banner), S8.11 (yellow/red values), S9.9 / S9.10 (fault and event log), S9.12 (PIN), S10.5 (stored ≤ 1 s, never deleted), S10.6 (±60 s snapshot), S11.7 (faults uploaded ≤ 30 s), S11.13–S11.27 (website, email by the cloud, safety never depends on it).
 
@@ -17,7 +17,7 @@ The MCU decides what a fault is. The Pi only records, shows and forwards it (S11
 | Fault reset requested / accepted / rejected | SYSTEM / `FAULT_RESET` | `api_server` + MCU reply |
 | Start-up, shutdown, log gap, FW change, time invalid/adjusted, PIN lock, snapshot deleted | SYSTEM | Core (D5), `maintenance`, `api_server` |
 
-`kind` from Table A severity (DD-33): Warning → `WARNING`; Protection, Latched protection, Critical → `FAULT`. So snapshots (DD-21) are taken for every Protection, Latched and Critical code.
+`kind` from Table A severity (DD-33): Warning → `WARNING`; Protection, Latched protection, Critical → `FAULT`. So snapshots (DD-21) are taken for every Protection, Latched and Critical code, except for faults raised in WAIT_CONFIG, where no samples are kept (DD-69, section 3).
 
 ### Error codes (Table A)
 
@@ -34,7 +34,7 @@ Severity (Table A): **Warning** = logged and shown only. **Protection** = chargi
 | E05 | OVERHEATING | Protection | Battery temperature > 55 °C. Battery cut off, fans 100 %. | FAULT + snapshot | `t_cell_c` | Fans 100 % (S6.5) |
 | E06 | UNDERTEMPERATURE | Protection | Battery temperature too low for charging. Charging stopped. | FAULT + snapshot | `t_cell_c` | – |
 | E07 | SHORT_CIRCUIT | Critical | Short circuit detected at the output. All outputs off. | FAULT + snapshot | `current_a` | Reset only after the cause is removed and 5 s of valid data (Table E) |
-| E08 | ESTOP | Critical | Emergency stop pressed. All outputs off. | FAULT + snapshot | – | State E-STOP: fans off (DD-42); reset at the E-stop itself (E7.5) |
+| E08 | ESTOP | Critical | Emergency stop pressed. All outputs off. | FAULT + snapshot | – | State E-STOP: fans off (DD-42); restart by releasing the E-stop and pressing RESET on the safety relay (E7.5) |
 | E09 | TEMP_SENSOR_FAULT | Critical | A temperature sensor is open, shorted or implausible. | FAULT + snapshot | – (the stored validity bits show which sensor) | That sensor shows N/A (DD-41); NTC1 or NTC3 → its fan curve 100 % (DD-52) |
 | E10 | AFE_COMM_FAULT | Critical | MCU cannot communicate with the cell-monitoring chip (AFE). | FAULT + snapshot | – | Cell voltages and current N/A while their validity bits are clear |
 | E11 | PI_COMM_LOST | Warning | No data exchange between MCU and Raspberry Pi. | WARNING | – | The MCU does not hear the Pi for > 5 s (core down or Pi → MCU wire); charging off (S3.8) |
@@ -78,12 +78,14 @@ sequenceDiagram
     E->>W: insert event (kind FAULT, cleared_ts NULL)<br/>+ snapshot with 60 s before from ring buffer (DD-07)
     W-->>E: event id
     Note over W: written ≤ 1 s after receipt (S10.5)
+    Note over UP: reads new events with its own<br/>read-only connection (D3 §7)
+    UP->>CL: HTTPS upload of the event (≤ 30 s, S11.7)
+    UP->>W: watermark, after the cloud acknowledges (DD-25)
+    Note over CL: website live errors, email for Critical<br/>sent by the cloud, not the Pi (S11.18, S11.25)
     loop every ~10 s until 60 s after the last fault
         E->>W: append snapshot_sample rows
     end
-    UP->>W: read events after watermark (≤ 30 s, S11.7)
-    UP->>CL: HTTPS upload (event + snapshot)
-    Note over CL: website live errors, email for Critical<br/>sent by the cloud, not the Pi (S11.24)
+    UP->>CL: snapshot, once complete (DD-50)
 
     M->>RX: FAULT_UPDATE / TELEMETRY, E05 bit cleared
     RX->>L: active faults −= E05
@@ -204,11 +206,16 @@ Proposed 2026-10-29 (DD-66 and DD-68 from the D7 review, [firmware-requests.md](
 | DD-68 | Reserved telemetry bits and byte 27 ignored; fault bit 19–31 logged as unknown fault (FAULT); unknown `state` shown as unknown and logged. |
 | DD-69 | In WAIT_CONFIG, faults are shown and logged as when ONLINE (active fault list, red banner, events); measurements stay hidden, no snapshot, `fw_version` NULL until a CONFIG arrives. Makes E15 visible (section 3). |
 
-Proposed 2026-10-29 (D8 sweep: display and event rules that had no DD):
+Agreed 2026-10-29 (D8 sweep: display and event rules that had no DD):
 
 | ID | Decision |
 |---|---|
-| DD-81 | Value colours from the value itself: red at the CONFIG protection limit, yellow at the S8.11 warning level; the yellow levels are display settings in the Pi's TOML file (not in CONFIG V2). Agreed 2026-10-29. |
+| DD-81 | Value colours from the value itself: red at the CONFIG protection limit, yellow at the S8.11 warning level; the yellow levels are display settings in the Pi's TOML file (not in CONFIG V2). |
+
+Proposed 2026-10-29 (D8 sweep):
+
+| ID | Decision |
+|---|---|
 | DD-82 | Events store code, `kind` and `severity`; names and descriptions come from the Table A module when shown. |
 | DD-83 | Every fault raise is a new event row; no merging or counting of repeats on the Pi (cloud feature). |
 

@@ -157,6 +157,8 @@ Proposed 2026-10-28 (DD-74 and DD-75: 2026-10-29, D8 sweep), see [decisions.md](
 
 Open:
 
-- **Excel and locale (S10.13):** tested in Dutch-locale Excel 2026-10-29 (D12, [csv-excel-test.md](csv-excel-test.md)): the comma/`.` file opens as one column, and `sep=,` silently turns 13.284 into 13284. The same file opens correctly in English-locale Excel; agreed: CSV targets English Excel, no `sep=` line (DD-62). A Dutch-locale variant is parked.
+- ~~Excel and locale (S10.13)~~: resolved by D12 ([csv-excel-test.md](csv-excel-test.md)): the CSV targets English-locale Excel, no `sep=` line (DD-62, agreed 2026-10-29); in Dutch-locale Excel the comma/`.` file opens as one column, and `sep=,` silently turns 13.284 into 13284. A Dutch-locale variant is parked.
 - **Backup target:** USB path and whether a USB stick is part of the cabinet build (S10.14 allows a second SD file).
 - **SoH** (`soh` table): method proposed in D11 ([soh.md](soh.md), DD-63 to DD-65): Ah charged from `V_low` up to the BMS charge-stop voltage during the 8 A charge, computed by `aggregator` from the 1 s samples; not agreed yet.
+- **Cloud heartbeat (S11.15):** the Pi is to send a heartbeat to the cloud every 60 s, so the website can show "Offline" with the last-seen time after 5 min. Not designed yet.
+- **Device ID (S11.11):** each BESS needs a unique device ID that goes with every upload, so the website can show more than one system. Not designed yet. Like the rest of the cloud upload, both wait for TE IT approval (P1.7, DD-75).

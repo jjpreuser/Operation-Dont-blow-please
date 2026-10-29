@@ -1,6 +1,6 @@
 # D1 – Pi software architecture
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); DD-70 proposed and DD-71 agreed 2026-10-29 (D8 sweep: decisions in this document that had no DD; repository layout per S1.3); open points below. Follows DD-02 (core service + display app) and DD-03 (native Rust UI).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); **in review since 2026-10-29**: DD-70 proposed (D8 sweep: a decision in this document that had no DD), DD-71 (repository layout per S1.3) agreed and the same day proposed again with a fifth crate `bess-fan-failsafe` (DD-59), and section 2 completed with the channels other documents rely on (writers to `db_writer`, E12 to `event_detector`, fan re-enable, RESET_ACK); open points below. Follows DD-02 (core service + display app) and DD-03 (native Rust UI).
 
 ## 1. Processes and external interfaces
 
@@ -16,6 +16,7 @@ flowchart LR
     subgraph PI["Raspberry Pi"]
         CORE["bess-core\n(systemd service, headless)"]
         DISP["bess-display\n(Slint UI, full-screen)"]
+        FS["bess-fan-failsafe\n(oneshot, DD-59)"]
         DB[("SQLite WAL\n/var/lib/bess/bess.db")]
         BAK[("Daily backups\nlast 7")]
     end
@@ -23,6 +24,7 @@ flowchart LR
     MCU -- "TELEMETRY 1 s, FAULT_UPDATE ≤ 100 ms,\nCONFIG, RESET_ACK" --> CORE
     CORE -- "HEARTBEAT 1 s, CONFIG_REQUEST,\nCONFIG_ACK, FAULT_RESET" --> MCU
     CORE -- "PWM duty" --> FANS
+    FS -. "100 % when the core stops and at boot" .-> FANS
     FANS -- "tach pulses" --> CORE
     RTC -. "time at boot" .-> CORE
     NTP -. "time sync" .-> CORE
@@ -90,13 +92,20 @@ flowchart TB
     LINK -. "alive" .-> TX
     SAMPLES --> AGG
     FRAMES --> EVT
+    FAN -- "E12 raise / clear" --> EVT
     RING -- "60 s pre-fault" --> EVT
     AGG -- "mpsc" --> WRITER
     EVT -- "mpsc" --> WRITER
     LINK -- "config, link events (mpsc)" --> WRITER
     MAINT -- "mpsc" --> WRITER
     UP -- "watermark (mpsc)" --> WRITER
+    UART -- "FRAMES_LOST, comm counters (mpsc)" --> WRITER
+    CLOCK -- "time events (mpsc)" --> WRITER
+    FAN -- "FAN_CTRL_RESET, fan_off (mpsc)" --> WRITER
+    HTTP -- "action events, PIN state (mpsc)" --> WRITER
     HTTP -- "fault reset (request_id)" --> TX
+    UART -- "RESET_ACK (request_id)" --> HTTP
+    HTTP -- "re-enable fan (DD-85)" --> FAN
     WRITER --> DBX[("SQLite")]
     DBX -. "read-only conns" .-> HTTP
     DBX -. "read-only conn" .-> UP
@@ -109,6 +118,8 @@ flowchart TB
 
 `uart_tx` is the only writer to the serial port (DD-70); `link_supervisor` and `api_server` send it messages. RESET_ACK goes from `uart_rx` back to the waiting `api_server` request (matched by `request_id`, 2 s timeout, DD-38).
 
+Every task that logs an event or changes `core_state` sends it to `db_writer` (DD-15): besides the logging tasks, `uart_rx` (`FRAMES_LOST` and the communication counters, DD-66, S5.9), `clock_manager` (`TIME_INVALID`, `TIME_ADJUSTED`), `fan_controller` (`FAN_CTRL_RESET`, the `fan_off` state of DD-85) and `api_server` (`FAULT_RESET`, `PIN_LOCK`, `FAN_REENABLED`, PIN state). `fan_controller` hands E12 raise and clear to `event_detector`, which logs it like an MCU code (DD-34, DD-39).
+
 ## 3. Proposed crate layout (Cargo workspace in `monitor/`)
 
 | Crate | Kind | Contents |
@@ -117,8 +128,9 @@ flowchart TB
 | `bess-api` | lib | Serde types for the HTTP/JSON API and live stream (used by core, display and dashboard tests). |
 | `bess-core` | bin | All tasks above. |
 | `bess-display` | bin | Native touchscreen UI; only talks to `bess-api` over the Unix socket. |
+| `bess-fan-failsafe` | bin | Small separate program that writes 100 % to both fan controllers over I2C and exits; run by systemd from `ExecStopPost=` of `bess-core` and from an early boot unit (DD-59, [fan-hardware.md](fan-hardware.md) §4). |
 
-Repository layout (DD-71, agreed 2026-10-29) follows S1.3: `/monitor` (this workspace, renamed from `Pi/` on 2026-10-29), `/protocol` (UART specification, the one document for C and Rust, S5.10, with reference frames and the CONFIG validation list), `/firmware` (C, MCU) and `/docs`. `/protocol` and `/firmware` are filled once the firmware team agrees to work in this repository; until then the UART specification stays their draft in `Research/`.
+Repository layout (DD-71; agreed 2026-10-29, proposed again the same day with the `bess-fan-failsafe` crate) follows S1.3: `/monitor` (this workspace, renamed from `Pi/` on 2026-10-29), `/protocol` (UART specification, the one document for C and Rust, S5.10, with reference frames and the CONFIG validation list), `/firmware` (C, MCU) and `/docs`. `/protocol` and `/firmware` are filled once the firmware team agrees to work in this repository; until then the UART specification stays their draft in `Research/`.
 
 ## 4. Decisions
 
@@ -134,9 +146,9 @@ See [decisions.md](decisions.md):
 - DD-40 `protocol` crate implements the UART draft.
 - DD-42 E-STOP → fans off.
 
-Proposed 2026-10-29 (D8 sweep):
+Proposed 2026-10-29:
 
-- DD-70 Tokio tasks plus the `db_writer` thread; state shared only through `watch` / `broadcast` / `mpsc` channels; `uart_tx` is the only serial writer.
-- DD-71 (agreed 2026-10-29) Repository per S1.3: `/monitor`, `/protocol`, `/firmware`, `/docs` (section 3).
+- DD-70 (D8 sweep) Tokio tasks plus the `db_writer` thread; state shared only through `watch` / `broadcast` / `mpsc` channels; `uart_tx` is the only serial writer.
+- DD-71 Repository per S1.3: `/monitor`, `/protocol`, `/firmware`, `/docs` (section 3). Agreed 2026-10-29, proposed again the same day: the workspace gets a fifth crate `bess-fan-failsafe` (DD-59).
 
 Open: SoH method (D9). Fan controller hardware and core-down fallback proposed in D10 ([fan-hardware.md](fan-hardware.md), DD-56 to DD-61).

@@ -1,6 +1,6 @@
 # D2 – Database layout (SQLite)
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-36, DD-41, DD-43) and on 2026-10-29 for D10 (per-fan speed `fan1_rpm`, `fan2_rpm`, DD-58); DD-72 and DD-73 proposed 2026-10-29 (D8 sweep); open points in section 5. Builds on DD-04 (storage tiers), DD-05 (wide tables), DD-06 (UTC ISO text timestamps), DD-07 (two-stage snapshots), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without valid clock), DD-12 (WAL, `synchronous=FULL`) and DD-15 (single writer).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-36, DD-41, DD-43) and on 2026-10-29 for D10 (per-fan speed `fan1_rpm`, `fan2_rpm`, DD-58); DD-72 and DD-73 proposed 2026-10-29 (D8 sweep); `core_state.energy_baseline` removed 2026-10-29 (left over from the dropped MCU energy counters, DD-08); open points in section 5. Builds on DD-04 (storage tiers), DD-05 (wide tables), DD-06 (UTC ISO text timestamps), DD-07 (two-stage snapshots), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without valid clock), DD-12 (WAL, `synchronous=FULL`) and DD-15 (single writer).
 
 ## 1. Signal set
 
@@ -111,7 +111,7 @@ erDiagram
     }
 
     core_state {
-        TEXT key PK "last_alive_ts, last_boot_counter, last_config_revision, last_reset_request_id, comm_error_total, frames_lost_total, soh_rest_point, energy_baseline, last_backup_ts, fan_off (DD-85)"
+        TEXT key PK "last_alive_ts, last_boot_counter, last_config_revision, last_reset_request_id, comm_error_total, frames_lost_total, soh_rest_point, last_backup_ts, fan_off (DD-85)"
         TEXT value
     }
 
@@ -138,7 +138,7 @@ Everything goes through `db_writer` (DD-15).
 |---|---|---|
 | `agg_10min` | aggregator | Every 10 min, on the interval boundary |
 | `agg_daily` | aggregator | 00:00 local, from the finished day's `agg_10min` rows (DD-09) |
-| `event` | event_detector, link_supervisor (link state, MCU restart, config), api_server (fault reset, PIN lock), clock_manager (time invalid/adjusted), core start-up (start-up, log gap) | Within 1 s (S10.5); `cleared_ts` updated when the fault clears |
+| `event` | event_detector, link_supervisor (link state, MCU restart, config), api_server (fault reset, PIN lock, fan re-enable), clock_manager (time invalid/adjusted), maintenance (snapshot deleted, backup failed), fan_controller (fan controller reset), uart_rx (frames lost), core start-up (start-up, log gap) | Within 1 s (S10.5); `cleared_ts` updated when the fault clears |
 | `mcu_config` | link_supervisor | Each CONFIG it validates (new identity only) |
 | `snapshot`, `snapshot_sample` | event_detector | 60 s before at once, then appended every ~10 s (DD-07) |
 | `soh` | aggregator | When a valid rest-to-rest measurement is done, at most once a day (S10.9) |
@@ -170,7 +170,7 @@ Size guard: if the file passes `DB_SIZE_SOFT_LIMIT` (proposal 150 MB) the oldest
 Agreed 2026-10-27, see [decisions.md](decisions.md):
 
 - DD-20 One `event` table for faults, warnings and system events; the fault log (S9.9) and event log (S9.10) are filters on `kind`.
-- DD-21 A snapshot is taken for every `FAULT` event (Protection, Latched protection, Critical); Warnings get no snapshot.
+- DD-21 A snapshot is taken for every `FAULT` event (Protection, Latched protection, Critical); Warnings get no snapshot. Exception: FAULT events raised in WAIT_CONFIG get none, since no samples are kept there (DD-69, proposed).
 - DD-22 (revised) Every MCU fault event stores all 15 signal values, state and validity of the frame that raised it (values at report).
 - DD-23 Retention: 10-min records 30 days; daily records, events and SoH kept forever; snapshots deleted oldest-first only above `DB_SIZE_SOFT_LIMIT` (proposal 150 MB). No automatic `VACUUM`.
 - DD-24 (revised) Limits, `CAP_AH` (CONFIG `capacity_mAh`), fan tables come only from the MCU CONFIG; `setting` holds PIN state; the TOML file holds Pi-only settings.
@@ -186,5 +186,5 @@ Proposed 2026-10-29 (D8 sweep):
 
 Open:
 
-- Fan columns: the UART draft has one battery and one air curve with a single expected RPM per point and assumes identical fans, so one `fan_duty_pct` fits. D10 has 2 fans with a tach each, so speed is stored per fan (`fan1_rpm`, `fan2_rpm`, DD-58, agreed 2026-10-29): a failing fan is visible in the graphs and the CSV.
+- ~~Fan columns~~: one `fan_duty_pct` (the UART draft has one battery and one air curve with a single expected RPM per point and assumes identical fans) and the speed per fan, `fan1_rpm` and `fan2_rpm` (D10, DD-58, agreed 2026-10-29), so a failing fan is visible in the graphs and the CSV.
 - `soh` table: D11 ([soh.md](soh.md) §5, DD-65, proposed 2026-10-29) replaces the rest-point columns with voltage-window columns and `core_state.soh_rest_point` with `soh_baseline`; the ERD changes once D11 is agreed.

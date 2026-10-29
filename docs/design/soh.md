@@ -1,14 +1,14 @@
 # D11 – State of health (SoH)
 
-Status: **Proposed 2026-10-29**, method chosen 2026-10-29: Ah between a lower voltage point and the BMS charge-stop voltage during the 8 A charge (option 3 of the Miro explainer "D11 SoH explainer"); DD-63 to DD-65, [decisions.md](decisions.md); open points in section 7. Builds on D2 ([database.md](database.md)): `soh` table; D3 ([data-lifecycle.md](data-lifecycle.md)): 1 s samples, Ah integration (DD-46); D9 / [firmware-requests.md](firmware-requests.md) §1. Decisions it relies on: DD-08 (Pi integrates Ah), DD-24 (`CAP_AH` and limits from CONFIG, Pi-only settings in TOML), DD-41 (invalid fields), DD-44 (shown SoC only from the MCU).
+Status: **Proposed 2026-10-29**, method chosen 2026-10-29: Ah between a lower voltage point and the BMS charge-stop voltage during the 8 A charge (the options are compared in trade-off T11, [decisions.md](decisions.md)); DD-63 to DD-65, [decisions.md](decisions.md); open points in section 7. Builds on D2 ([database.md](database.md)): `soh` table; D3 ([data-lifecycle.md](data-lifecycle.md)): 1 s samples, Ah integration (DD-46); D9 / [firmware-requests.md](firmware-requests.md) §1. Decisions it relies on: DD-08 (Pi integrates Ah), DD-24 (`CAP_AH` and limits from CONFIG, Pi-only settings in TOML), DD-41 (invalid fields), DD-44 (shown SoC only from the MCU).
 
-Requirements: S10.9 (SoH, stored for the trend graph; wording change proposed in section 6), S8.13 (time to full uses SoH), S9.11 (SoH gauge), Table B (SoH 1 %, updated daily), E1.7 (20–85 % SoC window), E5.2–E5.3 (CC/CV charger, 8.0 A ± 5 %), E5.8 (CHARGING state), E5.9 (charging curve for the selected cells), Table D (9.6 Ah pack, 4S3P).
+Requirements: S10.9 (SoH, stored for the trend graph; wording change proposed in section 6), S8.13 (time to full uses SoH), S9.4 (SoH gauge), S9.11 (System info: measured capacity, baseline reset), Table B (SoH 1 %, updated daily), E1.7 (20–85 % SoC window), E5.2–E5.3 (CC/CV charger, 8.0 A ± 5 %), E5.8 (CHARGING state), E5.9 (charging curve for the selected cells), Table D (9.6 Ah pack, 4S3P).
 
 SoH is information for the user and service; nothing safety-related depends on it (S11.27).
 
 ## 1. Why the simple methods do not work
 
-- **Counting is circular.** The MCU SoC is Coulomb counted (S3.18). Ah counted divided by a ΔSoC that is itself Ah counted / `CAP_AH` is always 100 %.
+- **Counting is circular.** The MCU SoC is Coulomb counted (S3.15). Ah counted divided by a ΔSoC that is itself Ah counted / `CAP_AH` is always 100 %.
 - **LFP resting voltage is flat.** It only shows the SoC below about 20 % and above about 90 %. In between, a few mV is 10 % SoC or more.
 - **The battery never goes there.** The BMS keeps it in 20–85 % (E1.7) and stops charging at 85 %, so S10.9's rest points at the readable ends never happen.
 
@@ -99,7 +99,7 @@ Proposed:
 >
 > Value: lower voltage from the charging curve (E5.9); temperature 15–35 °C; at most once per day. Verification: T (repeat measurements on the same battery within ± 3 % SoH; with one parallel string disconnected, 4S2P, SoH shows about 67 %).
 
-Reason: the current text is circular with the Coulomb-counted SoC (S3.18) and needs rest points outside the 20–85 % window (E1.7) that the BMS never allows.
+Reason: the current text is circular with the Coulomb-counted SoC (S3.15) and needs rest points outside the 20–85 % window (E1.7) that the BMS never allows.
 
 ## 7. Open
 
