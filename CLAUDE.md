@@ -12,7 +12,12 @@ Raspberry Pi monitor app for the TE Connectivity BESS (4S3P LiFePO4 battery ener
 ## Miro board (requirements backlog)
 
 Board: https://miro.com/app/board/uXjVEVbEyh4=/ ("My First Board", accessible via the Miro connector).
-Contains 4 kanbans (incl. "Kanban general", "Kanban Software") and 3 tables (incl. "Mechanical Backlog"), ~250 requirement cards. Each card: ID + title, description, MoSCoW (Must/Should), verification method (I = inspection, T = test). As of 2026-10-27 all cards are "Not Started".
+Contains 4 kanbans, 3 tables (incl. "Mechanical Backlog") and the Mermaid design diagrams (D1, D2, D5, D6). Status lanes: Not Started, Initiated, In Progress, blocked, in review, Sign off, Complete.
+
+- **Kanban Software**: Pi design tasks D1–D13 (architecture, ERD, data lifecycle, fan control, lifecycle, fault handling, UART review, decision log, SoH, fan hardware, CSV/Excel test, fan spin-up test). Each card describes its design doc in `docs/design/` and the DD-xx decisions it covers; keep the card text in sync when a design doc changes. As of 2026-10-28: D1, D2, D5, D6 Complete; D3, D4 in review (proposed, DD-45 to DD-55); D7, D8, D9 In Progress; D10–D13 Not Started.
+- **Kanban general**: project cards P1.1–P1.7 and open items (OI10, OI13–OI17, OI19, OI20); only OI14 is Initiated, the rest Not Started.
+- **Kanban electrical**, **Kanban Mechanical**: empty.
+- **Tables**: the requirement cards (~250). Each card: ID + title, description, MoSCoW (Must/Should), verification method (I = inspection, T = test).
 
 | Prefix | Area |
 |---|---|

@@ -58,7 +58,7 @@ erDiagram
         INTEGER code "Table A error code 1-19, NULL for SYSTEM"
         TEXT severity "CRITICAL, PROTECTION, LATCHED, WARNING or INFO"
         TEXT source "MCU or PI (E12, DD-39)"
-        TEXT system_type "SYSTEM only: STARTUP, SHUTDOWN, LOG_GAP, STATE_CHANGE, MCU_RESTART, CONFIG_CHANGE, CONFIG_ACCEPTED, CONFIG_REJECTED, FW_CHANGE, FAULT_RESET, TIME_INVALID, TIME_ADJUSTED, PIN_LOCK, SNAPSHOT_DELETED"
+        TEXT system_type "SYSTEM only: STARTUP, SHUTDOWN, LOG_GAP, STATE_CHANGE, MCU_RESTART, CONFIG_CHANGE, CONFIG_ACCEPTED, CONFIG_REJECTED, FW_CHANGE, FAULT_RESET, TIME_INVALID, TIME_ADJUSTED, PIN_LOCK, SNAPSHOT_DELETED, BACKUP_FAILED"
         REAL SIG "14 signal columns from the raising frame, values at report (DD-22)"
         TEXT state "MCU state in that frame"
         INTEGER validity "validity bits of that frame (DD-41)"
@@ -111,12 +111,12 @@ erDiagram
     }
 
     core_state {
-        TEXT key PK "last_alive_ts, last_boot_counter, last_config_revision, last_reset_request_id, comm_error_total, soh_rest_point, energy_baseline"
+        TEXT key PK "last_alive_ts, last_boot_counter, last_config_revision, last_reset_request_id, comm_error_total, soh_rest_point, energy_baseline, last_backup_ts"
         TEXT value
     }
 
     upload_watermark {
-        TEXT table_name PK "agg_10min, agg_daily, event, soh"
+        TEXT table_name PK "agg_10min, agg_daily, event, soh, snapshot (DD-50)"
         TEXT last_sent_key "ts or id of the last row the cloud acknowledged"
         TEXT last_attempt_ts
     }
