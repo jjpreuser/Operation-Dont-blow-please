@@ -1,6 +1,6 @@
 # D3 – Data lifecycle
 
-Status: **Proposed 2026-10-28**, to be agreed (DD-45 to DD-50, [decisions.md](decisions.md)); open points in section 8. Builds on D1 ([architecture.md](architecture.md)): `aggregator`, `maintenance`, `db_writer`, `cloud_uploader`; D2 ([database.md](database.md)): tables and retention; D5 ([lifecycle.md](lifecycle.md)): link states, clock validity; D6 ([fault-handling.md](fault-handling.md)): events and snapshots. Decisions it relies on: DD-04 (storage tiers), DD-07 (two-stage snapshots), DD-08 (Pi integrates Ah/Wh), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without a valid clock), DD-12 (WAL, `synchronous=FULL`), DD-13 (RAM buffer not persisted), DD-23 (retention), DD-25 (upload watermark), DD-41 (invalid fields NULL).
+Status: **Proposed 2026-10-28**, to be agreed (DD-45 to DD-50, [decisions.md](decisions.md); DD-74 and DD-75 added 2026-10-29 from the D8 sweep); open points in section 8. Builds on D1 ([architecture.md](architecture.md)): `aggregator`, `maintenance`, `db_writer`, `cloud_uploader`; D2 ([database.md](database.md)): tables and retention; D5 ([lifecycle.md](lifecycle.md)): link states, clock validity; D6 ([fault-handling.md](fault-handling.md)): events and snapshots. Decisions it relies on: DD-04 (storage tiers), DD-07 (two-stage snapshots), DD-08 (Pi integrates Ah/Wh), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without a valid clock), DD-12 (WAL, `synchronous=FULL`), DD-13 (RAM buffer not persisted), DD-23 (retention), DD-25 (upload watermark), DD-41 (invalid fields NULL).
 
 Requirements: S10.1 (SQLite WAL, power loss loses at most the last record), S10.2 (last 1 h of 1 s data in RAM), S10.3 (10-min min/avg/max + Ah/Wh), S10.4 (daily record at 00:00 local + equivalent cycles), S10.5 / S10.6 (events, ±60 s snapshot), S10.7 (retention: 10-min 30 days, daily and events ≥ 2 years), S10.8 (< 200 MB after 4 years), S10.11 (CSV export), S10.12 (DB download, scp), S10.13 (CSV opens in Excel), S10.14 (daily backup to a second location, keep last 7), S10.15 (optional cloud upload, queued, never blocks logging), S10.17 (gap after restart logged), S9 (graphs with time ranges and min–max bands).
 
@@ -35,7 +35,7 @@ flowchart LR
 
 Without a valid clock (DD-11) samples still go to the ring buffer with monotonic time, so live graphs work, but nothing is aggregated or written.
 
-## 2. From frame to sample
+## 2. From frame to sample (DD-74)
 
 - Only **TELEMETRY** frames make samples; FAULT_UPDATE frames go to `event_detector` only (D6 §2).
 - Only while the link is **ONLINE** (D5 §2). In WAIT_CONFIG there is no CONFIG yet to interpret the values (S2.4); while OFFLINE there is nothing.
@@ -134,7 +134,7 @@ flowchart TB
 
 DD-50, extends DD-25:
 
-- Off unless enabled in the TOML file (needs TE IT approval, P1.7). Credentials only in the TOML file / a key file, not in the source.
+- Off unless enabled in the TOML file (needs TE IT approval, P1.7). Credentials only in the TOML file / a key file, not in the source (DD-75).
 - `cloud_uploader` reads with its own read-only connection; it never writes except its watermark through `db_writer`, so it can never block or slow down logging (S10.15).
 - Tables: `agg_10min`, `agg_daily`, `event`, `soh` and **complete snapshots** (`snapshot.complete` = 1 with their samples, S11.1). Watermark per table: last acknowledged `ts` or `id`. Events whose `cleared_ts` changed are re-sent by `id` (DD-25).
 - Order per cycle: events first (S11.7, ≤ 30 s), then snapshots, then aggregates. Cycle every 10 s while there is something to send, exponential back-off up to 10 min while offline.
@@ -142,7 +142,7 @@ DD-50, extends DD-25:
 
 ## 8. Decisions
 
-Proposed 2026-10-28, see [decisions.md](decisions.md):
+Proposed 2026-10-28 (DD-74 and DD-75: 2026-10-29, D8 sweep), see [decisions.md](decisions.md):
 
 | ID | Decision |
 |---|---|
@@ -152,6 +152,8 @@ Proposed 2026-10-28, see [decisions.md](decisions.md):
 | DD-48 | Daily online backup to USB stick if mounted, else SD card; keep newest 7; failures logged as `BACKUP_FAILED`. DB download uses the same mechanism. |
 | DD-49 | Graphs and CSV read the tier that covers the range: ≤ 1 h ring buffer, ≤ 30 days `agg_10min`, older `agg_daily`; coarser on request. CSV with `timestamp_utc` + `time_local` columns. |
 | DD-50 | Cloud upload also sends complete snapshots (S11.1); order events → snapshots → aggregates; read-only, never blocks logging. |
+| DD-74 | Samples only from TELEMETRY while ONLINE, with the Pi receive time (UTC for storage, monotonic for the ring buffer and timeouts); without a valid clock only the ring buffer gets them. |
+| DD-75 | Cloud upload off unless enabled in the TOML file after TE IT approval (P1.7); credentials only in the TOML file or a key file. |
 
 Open:
 

@@ -1,6 +1,6 @@
 # D1 – Pi software architecture
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); open points below. Follows DD-02 (core service + display app) and DD-03 (native Rust UI).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); DD-70 and DD-71 proposed 2026-10-29 (D8 sweep: decisions in this document that had no DD); open points below. Follows DD-02 (core service + display app) and DD-03 (native Rust UI).
 
 ## 1. Processes and external interfaces
 
@@ -37,7 +37,7 @@ UART: 115200 8N1, binary frames `AA 55`, protocol version 0x03, CRC-16/CCITT-FAL
 
 ## 2. Inside bess-core
 
-Boxes are async tasks (tokio) unless marked *thread*. Arrows are channels: `watch` = latest value only, `broadcast` = every sample to each listener, `mpsc` = work queue to a single owner.
+Boxes are async tasks (tokio) unless marked *thread*. Arrows are channels: `watch` = latest value only, `broadcast` = every sample to each listener, `mpsc` = work queue to a single owner. Tasks share state only through these channels (DD-70).
 
 ```mermaid
 flowchart TB
@@ -107,7 +107,7 @@ flowchart TB
     HTTP --- TCP
 ```
 
-`uart_tx` is the only writer to the serial port; `link_supervisor` and `api_server` send it messages. RESET_ACK goes from `uart_rx` back to the waiting `api_server` request (matched by `request_id`, 2 s timeout, DD-38).
+`uart_tx` is the only writer to the serial port (DD-70); `link_supervisor` and `api_server` send it messages. RESET_ACK goes from `uart_rx` back to the waiting `api_server` request (matched by `request_id`, 2 s timeout, DD-38).
 
 ## 3. Proposed crate layout (Cargo workspace in `Pi/`)
 
@@ -117,6 +117,8 @@ flowchart TB
 | `bess-api` | lib | Serde types for the HTTP/JSON API and live stream (used by core, display and dashboard tests). |
 | `bess-core` | bin | All tasks above. |
 | `bess-display` | bin | Native touchscreen UI; only talks to `bess-api` over the Unix socket. |
+
+DD-71 (proposed 2026-10-29): S1.3 asks for `/monitor` (Rust, Pi) in one repository next to `/firmware`, `/protocol` and `/docs`; this repository has `Pi/` and `docs/` only. Either this layout or S1.3 changes; to settle with firmware and the requirements owner.
 
 ## 4. Decisions
 
@@ -131,5 +133,10 @@ See [decisions.md](decisions.md):
 - DD-26 / DD-27 `uart_tx` and link states (from D5, revised for the UART draft).
 - DD-40 `protocol` crate implements the UART draft.
 - DD-42 E-STOP → fans off.
+
+Proposed 2026-10-29 (D8 sweep):
+
+- DD-70 Tokio tasks plus the `db_writer` thread; state shared only through `watch` / `broadcast` / `mpsc` channels; `uart_tx` is the only serial writer.
+- DD-71 Cargo workspace in `Pi/` (section 3); S1.3 asks for `/monitor`.
 
 Open: SoH method (D9). Fan controller hardware and core-down fallback proposed in D10 ([fan-hardware.md](fan-hardware.md), DD-56 to DD-61).

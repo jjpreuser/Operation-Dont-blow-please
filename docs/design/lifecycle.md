@@ -1,6 +1,6 @@
 # D5 – Pi app lifecycle and comm-loss state machine
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); DD-69 proposed 2026-10-29 (faults shown and logged in WAIT_CONFIG, from the D6 error code list); open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); DD-69 proposed 2026-10-29 (faults shown and logged in WAIT_CONFIG, from the D6 error code list); DD-77 to DD-80 proposed 2026-10-29 (D8 sweep: decisions in this document that had no DD); open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
 
 Requirements: S2.4 (config from the MCU before live values), S3.6 (fault reset from the dashboard), S3.8 (MCU reports E11 when Pi frames stop, 5 s), S5.8 (telemetry 1 s, faults ≤ 100 ms), S7.4 (full-screen within 60 s, no login), S8.9 (states + priority), S8.12 ("BMS communication lost" after 3 s), S9.10 (event log), S10.10/S10.16 (UTC, NTP + RTC), S10.17 (logging resumes ≤ 60 s, gap logged).
 
@@ -50,10 +50,10 @@ sequenceDiagram
     Note over D: live values shown after telemetry with the same identity (S2.4); target ≤ 60 s after power on (S7.4)
 ```
 
-- **Display start (S7.4):** `bess-display.service` runs the Slint app directly on the KMS/DRM backend as a dedicated user, `WantedBy=multi-user.target`. No desktop, no login, no browser (DD-03). It does not wait for the core; it shows "Starting…" until the socket answers.
+- **Display start (S7.4):** `bess-display.service` runs the Slint app directly on the KMS/DRM backend as a dedicated user, `WantedBy=multi-user.target`. No desktop, no login, no browser (DD-03). It does not wait for the core; it shows "Starting…" until the socket answers (DD-77).
 - **Core start:** nothing waits for the network or NTP. Migrations run before any task starts (D2).
 - **Log gap (S10.17):** the core writes `core_state.last_alive_ts` every 60 s. At start-up it logs `LOG_GAP` from that time to now, with `detail` = `clean` if the previous run logged `SHUTDOWN`, else `power loss`. If the clock is not valid yet, the event waits in memory (section 4).
-- **Shutdown** (SIGTERM, or the PIN-protected "Pi shutdown" action, S9.12): stop accepting API actions, write the open 10-min interval as a partial record (its `sample_count` shows it is partial, DD-10), finish any open snapshot with what is available, log `SHUTDOWN`, close the DB, then `systemctl poweroff`. On exit the core sets the fans to 100 %; after power-off they stay at full speed (DD-59). The confirmation dialog warns that the fans will run at full speed until the Pi is started again.
+- **Shutdown** (SIGTERM, or the PIN-protected "Pi shutdown" action, S9.12, DD-78): stop accepting API actions, write the open 10-min interval as a partial record (its `sample_count` shows it is partial, DD-10), finish any open snapshot with what is available, log `SHUTDOWN`, close the DB, then `systemctl poweroff`. On exit the core sets the fans to 100 %; after power-off they stay at full speed (DD-59). The confirmation dialog warns that the fans will run at full speed until the Pi is started again.
 - **Crash:** no `SHUTDOWN` event; systemd restarts the core (DD-17); the next start logs `LOG_GAP` (`detail` = `crash` when `last_alive_ts` is under 2 min old and no `SHUTDOWN` came first).
 
 ## 2. BMS link state machine
@@ -104,7 +104,7 @@ stateDiagram-v2
 Rules:
 
 - **Timeout** is 3 s from the last *valid* frame, measured on the monotonic clock (not wall time, so NTP steps cannot trigger it). Frames that fail CRC or length are discarded and counted (`comm_error_total`, S5.9); they do not reset the timer.
-- **Every transition** logs a `SYSTEM` / `STATE_CHANGE` event (`detail` = `ONLINE -> OFFLINE` etc.). Repeated flapping within 10 s is logged once with a count, so a loose connector cannot flood the event log.
+- **Every transition** logs a `SYSTEM` / `STATE_CHANGE` event (`detail` = `ONLINE -> OFFLINE` etc.). Repeated flapping within 10 s is logged once with a count, so a loose connector cannot flood the event log (DD-80).
 - **MCU identity** (UART draft §4): every TELEMETRY and FAULT_UPDATE carries `boot_counter` (changes on every MCU reset) and `config_revision`. A change logs `MCU_RESTART` (or `CONFIG_CHANGE`) and sends the Pi to WAIT_CONFIG. The new CONFIG carries `fw_major.minor.patch`; a change logs `FW_CHANGE` (S7.5, `detail` = `1.2.0 -> 1.3.0`).
 - **CONFIG is the only source** of limits, capacity, fan tables, fan fault and offline parameters and the 3 s timeout (`pi_data_timeout_ms`) (S2.4, DD-24). Before the first CONFIG the Pi uses 3 s. The Pi validates it as listed in UART draft §7 (schema 1, exact length, reserved bytes zero, LFP 4S3P, NTC1–3 present, 2–8 strictly increasing fan points, …). The last valid CONFIG is kept in RAM for the running identity and stored in `mcu_config` (DD-43); after a Pi restart it is always re-requested.
 
@@ -121,7 +121,7 @@ Rules:
 
 The heartbeat is sent only while `link_supervisor` and `fan_controller` are alive (each feeds a liveness flag), so a stuck fan task also stops the heartbeat and the MCU falls back to its E11 behaviour. CONFIG_REQUEST and CONFIG_ACK alone do not count as Pi health for the MCU.
 
-## 4. Clock validity
+## 4. Clock validity (DD-79)
 
 ```mermaid
 stateDiagram-v2
@@ -162,7 +162,7 @@ stateDiagram-v2
     end note
 ```
 
-The SSE stream sends a keep-alive at least every 1 s, so a silent core is noticed within 3 s.
+The SSE stream sends a keep-alive at least every 1 s, so a silent core is noticed within 3 s (DD-77).
 
 ## 6. Shown system state (S8.9)
 
@@ -198,7 +198,16 @@ Proposed 2026-10-29 (from the D6 error code list, [fault-handling.md](fault-hand
 |---|---|
 | DD-69 | In WAIT_CONFIG, faults from valid frames are shown and logged as when ONLINE; measurements stay hidden and are not sampled (S2.4). Makes E15 CONFIG_INVALID visible, since the MCU then sends no valid CONFIG. |
 
+Proposed 2026-10-29 (D8 sweep: decisions in this document that had no DD):
+
+| ID | Decision |
+|---|---|
+| DD-77 | `bess-display` runs Slint directly on KMS/DRM as a dedicated user (no desktop, no login), does not wait for the core, reconnects every 1 s and shows the core as lost after 3 s without an SSE message (keep-alive at least every 1 s). |
+| DD-78 | "Pi shutdown" = clean core stop (partial interval written, open snapshot finished, `SHUTDOWN` logged), then power-off of the Pi only; fans at 100 % until the Pi starts again; no reboot action. |
+| DD-79 | Clock valid on an NTP sync (chrony) or with a readable RTC whose year is at least the build year; an NTP sync also sets the RTC. |
+| DD-80 | Every link and MCU state change is a `STATE_CHANGE` event; link flapping within 10 s is logged once with a count. |
+
 Open:
 
 - ~~DD-27 field and DD-26 message formats~~: defined by the UART draft (DD-40).
-- Does "Pi shutdown" (S9.12) also need a reboot action? Not in the requirements; left out.
+- Does "Pi shutdown" (S9.12) also need a reboot action? Not in the requirements; left out (DD-78).

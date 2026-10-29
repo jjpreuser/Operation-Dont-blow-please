@@ -1,6 +1,6 @@
 # D6 – Fault and event handling
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); DD-66 and DD-68 proposed 2026-10-29 from the D7 review (lost frames, unknown codes); error code list (Table A) added to section 1 on 2026-10-29, with DD-69 proposed (faults shown and logged in WAIT_CONFIG); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); DD-66 and DD-68 proposed 2026-10-29 from the D7 review (lost frames, unknown codes); error code list (Table A) added to section 1 on 2026-10-29, with DD-69 proposed (faults shown and logged in WAIT_CONFIG); DD-81 to DD-83 proposed 2026-10-29 (D8 sweep: display and event rules that had no DD); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
 
 Requirements: S3.6 (explicit reset, rejected while active), S3.7 (LED priority), S4.1 / Table A (codes, one source), S5.8 (faults ≤ 100 ms), S8.10 (active faults, red banner), S8.11 (yellow/red values), S9.9 / S9.10 (fault and event log), S9.12 (PIN), S10.5 (stored ≤ 1 s, never deleted), S10.6 (±60 s snapshot), S11.7 (faults uploaded ≤ 30 s), S11.13–S11.27 (website, email by the cloud, safety never depends on it).
 
@@ -99,7 +99,7 @@ Notes:
 - **Measured value in the fault log** (S9.9, DD-35): the Table A source file gets a `trigger_signal` column per code (listed in section 1, "Error codes") that picks one of the stored values for the log column.
 - **Event timestamp** = when the Pi received it (D2). If the clock is not valid, the event waits in RAM (D5 §4).
 - **Identity** with every event (DD-36): `fw_version` (from CONFIG), `app_version`, `boot_counter`, `config_revision`.
-- **Repeated faults:** every raise is a new event row; nothing is merged locally (the log is never compacted, S10.5). Counting and the email repeat window are cloud features (S11.17, S11.22).
+- **Repeated faults:** every raise is a new event row; nothing is merged locally (the log is never compacted, S10.5). Counting and the email repeat window are cloud features (S11.17, S11.22; DD-83).
 
 ## 3. Reconciliation (Pi start-up, reconnect, MCU restart)
 
@@ -126,10 +126,10 @@ In WAIT_CONFIG it does (DD-69): the fault bitmap needs no CONFIG, and a fault th
 |---|---|
 | Active fault list | Sorted like the LED (S3.7): highest severity first, then lowest code. Shows code, name, description, severity, local time of occurrence (S8.10). |
 | Red banner | On every page while any Critical fault is active (S8.10). Stays while OFFLINE (D5 §6). |
-| Value colours | Yellow at the warning level, red at the protection limit (S8.11). Value-based: from the config limits (S2.4), not from events. A value can be red while the MCU has not tripped yet (detection delay). |
+| Value colours | Yellow at the warning level, red at the protection limit (S8.11). Value-based, not from events (DD-81): red at the CONFIG protection limit (S2.4), yellow at the S8.11 level. A value can be red while the MCU has not tripped yet (detection delay). Open: CONFIG V2 has no warning levels, see DD-81. |
 | Fault log page | `event WHERE kind IN ('FAULT','WARNING')`: time, code, name, severity, trigger value + unit, cleared time; filter by severity and date, sort by column (S9.9). |
 | Event log page | `event WHERE kind = 'SYSTEM'` (S9.10). |
-| Names, descriptions, severities | Only from the generated Table A module (S4.1). The DB stores only the code; text is looked up when shown, so all screens and the cloud use the same text. |
+| Names, descriptions, severities | Only from the generated Table A module (S4.1). The DB stores the code plus `kind` and `severity` for the fault log filters (D2); names and descriptions are looked up when shown, so all screens and the cloud use the same text (DD-82). |
 
 ## 5. Fault reset (S3.6, S9.12)
 
@@ -203,6 +203,14 @@ Proposed 2026-10-29 (DD-66 and DD-68 from the D7 review, [firmware-requests.md](
 | DD-66 | Lost MCU frames detected from the `sequence` jump: counted (S5.9) and logged as `FRAMES_LOST`, since a lost FAULT_UPDATE can hide a short fault. |
 | DD-68 | Reserved telemetry bits and byte 27 ignored; fault bit 19–31 logged as unknown fault (FAULT); unknown `state` shown as unknown and logged. |
 | DD-69 | In WAIT_CONFIG, faults are shown and logged as when ONLINE (active fault list, red banner, events); measurements stay hidden, no snapshot, `fw_version` NULL until a CONFIG arrives. Makes E15 visible (section 3). |
+
+Proposed 2026-10-29 (D8 sweep: display and event rules that had no DD):
+
+| ID | Decision |
+|---|---|
+| DD-81 | Value colours from the value itself: red at the CONFIG protection limit, yellow at the S8.11 warning level. Open: CONFIG V2 has no warning levels (TOML display setting or a firmware request). |
+| DD-82 | Events store code, `kind` and `severity`; names and descriptions come from the Table A module when shown. |
+| DD-83 | Every fault raise is a new event row; no merging or counting of repeats on the Pi (cloud feature). |
 
 Open:
 
