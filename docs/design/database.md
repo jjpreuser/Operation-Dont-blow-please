@@ -1,6 +1,6 @@
 # D2 – Database layout (SQLite)
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-36, DD-41, DD-43) and on 2026-10-29 for D10 (per-fan speed `fan1_rpm`, `fan2_rpm`, DD-58); DD-72 and DD-73 proposed 2026-10-29 (D8 sweep); `core_state.energy_baseline` removed 2026-10-29 (left over from the dropped MCU energy counters, DD-08); open points in section 5. Builds on DD-04 (storage tiers), DD-05 (wide tables), DD-06 (UTC ISO text timestamps), DD-07 (two-stage snapshots), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without valid clock), DD-12 (WAL, `synchronous=FULL`) and DD-15 (single writer).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-36, DD-41, DD-43) and on 2026-10-29 for D10 (per-fan speed `fan1_rpm`, `fan2_rpm`, DD-58); **in review since 2026-10-29** for DD-72 and DD-73, proposed that day (D8 sweep); `core_state.energy_baseline` removed 2026-10-29 (left over from the dropped MCU energy counters, DD-08); open points in section 5. Builds on DD-04 (storage tiers), DD-05 (wide tables), DD-06 (UTC ISO text timestamps), DD-07 (two-stage snapshots), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without valid clock), DD-12 (WAL, `synchronous=FULL`) and DD-15 (single writer).
 
 ## 1. Signal set
 

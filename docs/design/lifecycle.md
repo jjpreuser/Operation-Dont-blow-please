@@ -1,6 +1,6 @@
 # D5 – Pi app lifecycle and comm-loss state machine
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); **in review since 2026-10-29** for the decisions proposed that day: DD-69 (faults shown and logged in WAIT_CONFIG, from the D6 error code list) and DD-77 to DD-80 (D8 sweep: decisions in this document that had no DD); open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); **in review since 2026-10-29** for the decisions proposed that day: DD-69 (faults shown and logged in WAIT_CONFIG, from the D6 error code list) and DD-77 to DD-80 (D8 sweep: decisions in this document that had no DD; DD-77 revised 2026-11-02 for cage, DD-87); open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
 
 Requirements: S2.4 (config from the MCU before live values), S3.6 (fault reset from the dashboard), S3.8 (MCU reports E11 when Pi frames stop, 5 s), S5.8 (telemetry 1 s, faults ≤ 100 ms), S7.4 (full-screen within 60 s, no login), S8.9 (states + priority), S8.12 ("BMS communication lost" after 3 s), S9.10 (event log), S10.10/S10.16 (UTC, NTP + RTC), S10.17 (logging resumes ≤ 60 s, gap logged).
 
@@ -34,7 +34,7 @@ sequenceDiagram
         C->>DB: event STARTUP + LOG_GAP(last_alive_ts → now)
         C-->>SD: sd_notify READY=1
     and display
-        SD->>D: start bess-display.service (no login, KMS full-screen)
+        SD->>D: start bess-display.service (no login, full-screen in cage)
         D->>D: show "Starting…"
         D->>C: connect Unix socket (retry every 1 s)
         C-->>D: SSE live stream
@@ -50,7 +50,7 @@ sequenceDiagram
     Note over D: live values shown after telemetry with the same identity (S2.4); target ≤ 60 s after power on (S7.4)
 ```
 
-- **Display start (S7.4):** `bess-display.service` runs the Slint app directly on the KMS/DRM backend as a dedicated user, `WantedBy=multi-user.target`. No desktop, no login, no browser (DD-03). It does not wait for the core; it shows "Starting…" until the socket answers (DD-77).
+- **Display start (S7.4):** `bess-display.service` runs the egui app full-screen inside the cage compositor as a dedicated user, `WantedBy=multi-user.target` (DD-87). No desktop, no login, no browser (DD-03). It does not wait for the core; it shows "Starting…" until the socket answers (DD-77).
 - **Core start:** nothing waits for the network or NTP. Migrations run before any task starts (D2).
 - **Log gap (S10.17):** the core writes `core_state.last_alive_ts` every 60 s. At start-up it logs `LOG_GAP` from that time to now, with `detail` = `clean` if the previous run logged `SHUTDOWN`, `crash` if it did not and `last_alive_ts` is under 2 min old (see **Crash** below), else `power loss` (DD-30). If the clock is not valid yet, the event waits in memory (section 4).
 - **Shutdown** (SIGTERM, or the PIN-protected "Pi shutdown" action, S9.12, DD-78): stop accepting API actions, write the open 10-min interval as a partial record (its `sample_count` shows it is partial, DD-10), finish any open snapshot with what is available, log `SHUTDOWN`, close the DB, then `systemctl poweroff`. On exit the core sets the fans to 100 %; after power-off they stay at full speed (DD-59). The confirmation dialog warns that the fans will run at full speed until the Pi is started again.
@@ -202,7 +202,7 @@ Proposed 2026-10-29 (D8 sweep: decisions in this document that had no DD):
 
 | ID | Decision |
 |---|---|
-| DD-77 | `bess-display` runs Slint directly on KMS/DRM as a dedicated user (no desktop, no login), does not wait for the core, reconnects every 1 s and shows the core as lost after 3 s without an SSE message (keep-alive at least every 1 s). |
+| DD-77 | `bess-display` runs full-screen inside the cage compositor as a dedicated user (no desktop, no login; revised 2026-11-02, DD-87), does not wait for the core, reconnects every 1 s and shows the core as lost after 3 s without an SSE message (keep-alive at least every 1 s). |
 | DD-78 | "Pi shutdown" = clean core stop (partial interval written, open snapshot finished, `SHUTDOWN` logged), then power-off of the Pi only; fans at 100 % until the Pi starts again; no reboot action. |
 | DD-79 | Clock valid on an NTP sync (chrony) or with a readable RTC whose year is at least the build year; an NTP sync also sets the RTC. |
 | DD-80 | Every link and MCU state change is a `STATE_CHANGE` event; link flapping within 10 s is logged once with a count. |
