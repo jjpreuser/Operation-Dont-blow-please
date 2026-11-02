@@ -1,6 +1,6 @@
 # D1 – Pi software architecture
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); **in review since 2026-10-29**: DD-70 proposed (D8 sweep: a decision in this document that had no DD), DD-71 (repository layout per S1.3) agreed and the same day proposed again with a fifth crate `bess-fan-failsafe` (DD-59), and section 2 completed with the channels other documents rely on (writers to `db_writer`, E12 to `event_detector`, fan re-enable, RESET_ACK); open points below. On 2026-11-02 DD-19 dropped Slint and DD-87 proposed egui in the cage compositor. Follows DD-02 (core service + display app) and DD-03 (native Rust UI).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); **in review since 2026-10-29**: DD-70 proposed (D8 sweep: a decision in this document that had no DD), DD-71 (repository layout per S1.3) agreed and the same day proposed again with a fifth crate `bess-fan-failsafe` (DD-59), and section 2 completed with the channels other documents rely on (writers to `db_writer`, E12 to `event_detector`, fan re-enable, RESET_ACK); open points below. DD-70 and DD-71 agreed 2026-11-02. On 2026-11-02 DD-19 dropped Slint and DD-87 proposed egui in the cage compositor. Follows DD-02 (core service + display app) and DD-03 (native Rust UI).
 
 ## 1. Processes and external interfaces
 
@@ -130,7 +130,7 @@ Every task that logs an event or changes `core_state` sends it to `db_writer` (D
 | `bess-display` | bin | Native touchscreen UI; only talks to `bess-api` over the Unix socket. |
 | `bess-fan-failsafe` | bin | Small separate program that writes 100 % to both fan controllers over I2C and exits; run by systemd from `ExecStopPost=` of `bess-core` and from an early boot unit (DD-59, [fan-hardware.md](fan-hardware.md) §4). |
 
-Repository layout (DD-71; agreed 2026-10-29, proposed again the same day with the `bess-fan-failsafe` crate) follows S1.3: `/monitor` (this workspace, renamed from `Pi/` on 2026-10-29), `/protocol` (UART specification, the one document for C and Rust, S5.10, with reference frames and the CONFIG validation list), `/firmware` (C, MCU) and `/docs`. `/protocol` and `/firmware` are filled once the firmware team agrees to work in this repository; until then the UART specification stays their draft in `Research/`.
+Repository layout (DD-71; agreed 2026-11-02) follows S1.3: `/monitor` (this workspace, renamed from `Pi/` on 2026-10-29), `/protocol` (UART specification, the one document for C and Rust, S5.10, with reference frames and the CONFIG validation list), `/firmware` (C, MCU) and `/docs`. `/protocol` and `/firmware` are filled once the firmware team agrees to work in this repository; until then the UART specification stays their draft in `Research/`.
 
 ## 4. Decisions
 
@@ -146,10 +146,10 @@ See [decisions.md](decisions.md):
 - DD-40 `protocol` crate implements the UART draft.
 - DD-42 E-STOP → fans off.
 
-Proposed 2026-10-29:
+Agreed 2026-11-02:
 
 - DD-70 (D8 sweep) Tokio tasks plus the `db_writer` thread; state shared only through `watch` / `broadcast` / `mpsc` channels; `uart_tx` is the only serial writer.
-- DD-71 Repository per S1.3: `/monitor`, `/protocol`, `/firmware`, `/docs` (section 3). Agreed 2026-10-29, proposed again the same day: the workspace gets a fifth crate `bess-fan-failsafe` (DD-59).
+- DD-71 Repository per S1.3: `/monitor`, `/protocol`, `/firmware`, `/docs` (section 3), with a fifth crate `bess-fan-failsafe` (DD-59).
 
 Proposed 2026-11-02:
 

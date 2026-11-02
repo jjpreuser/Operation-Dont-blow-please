@@ -1,6 +1,6 @@
 # D6 – Fault and event handling
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); **in review since 2026-10-29** for the decisions proposed that day: DD-66 and DD-68 from the D7 review (lost frames, unknown codes), DD-69 with the error code list (Table A) added to section 1 (faults shown and logged in WAIT_CONFIG), DD-82 and DD-83 from the D8 sweep; also from the D8 sweep DD-81 (agreed 2026-10-29: yellow levels in the TOML file); DD-76 agreed 2026-10-29 (a fan with E12 is switched off, the other runs at 100 %); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); **in review since 2026-10-29** for the decisions proposed that day: DD-66 and DD-68 from the D7 review (lost frames, unknown codes), DD-69 with the error code list (Table A) added to section 1 (faults shown and logged in WAIT_CONFIG), DD-82 and DD-83 from the D8 sweep (DD-69, DD-82 and DD-83 agreed 2026-11-02); also from the D8 sweep DD-81 (agreed 2026-10-29: yellow levels in the TOML file); DD-76 agreed 2026-10-29 (a fan with E12 is switched off, the other runs at 100 %); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
 
 Requirements: S3.6 (explicit reset, rejected while active), S3.7 (LED priority), S4.1 / Table A (codes, one source), S5.8 (faults ≤ 100 ms), S8.10 (active faults, red banner), S8.11 (yellow/red values), S9.9 / S9.10 (fault and event log), S9.12 (PIN), S10.5 (stored ≤ 1 s, never deleted), S10.6 (±60 s snapshot), S11.7 (faults uploaded ≤ 30 s), S11.13–S11.27 (website, email by the cloud, safety never depends on it).
 
@@ -198,7 +198,7 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 | DD-38 | (revised) FAULT_RESET / RESET_ACK per UART draft §8, 2 s, no retry, last `request_id` persisted. |
 | DD-39 | (revised) E12 detected only by the Pi with CONFIG parameters; disabled without RPM calibration. |
 
-Proposed 2026-10-29 (DD-66 and DD-68 from the D7 review, [firmware-requests.md](firmware-requests.md) §3, §5; DD-69 from the error code list):
+Proposed 2026-10-29 (DD-66 and DD-68 from the D7 review, [firmware-requests.md](firmware-requests.md) §3, §5; DD-69 from the error code list, agreed 2026-11-02):
 
 | ID | Decision |
 |---|---|
@@ -212,7 +212,7 @@ Agreed 2026-10-29 (D8 sweep: display and event rules that had no DD):
 |---|---|
 | DD-81 | Value colours from the value itself: red at the CONFIG protection limit, yellow at the S8.11 warning level; the yellow levels are display settings in the Pi's TOML file (not in CONFIG V2). |
 
-Proposed 2026-10-29 (D8 sweep):
+Agreed 2026-11-02 (D8 sweep):
 
 | ID | Decision |
 |---|---|
@@ -224,4 +224,4 @@ Open:
 - ~~Fault message contents~~: defined by the UART draft (DD-34, DD-38).
 - ~~E12 set time~~: `fan_fault_ms` from CONFIG.
 - Reset source (BMS button) in telemetry: not in the UART draft; optional request to firmware.
-- ~~E15 CONFIG_INVALID is never shown~~ (found 2026-10-29): the MCU then sends telemetry but no valid CONFIG (UART draft §8), so the Pi stays in WAIT_CONFIG; faults are now shown and logged there too (DD-69, proposed).
+- ~~E15 CONFIG_INVALID is never shown~~ (found 2026-10-29): the MCU then sends telemetry but no valid CONFIG (UART draft §8), so the Pi stays in WAIT_CONFIG; faults are now shown and logged there too (DD-69).

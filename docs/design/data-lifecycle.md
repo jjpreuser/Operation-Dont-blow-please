@@ -1,6 +1,6 @@
 # D3 – Data lifecycle
 
-Status: **Proposed 2026-10-28**, to be agreed (DD-45 to DD-50, [decisions.md](decisions.md); DD-74 and DD-75 added 2026-10-29 from the D8 sweep); open points in section 8. Builds on D1 ([architecture.md](architecture.md)): `aggregator`, `maintenance`, `db_writer`, `cloud_uploader`; D2 ([database.md](database.md)): tables and retention; D5 ([lifecycle.md](lifecycle.md)): link states, clock validity; D6 ([fault-handling.md](fault-handling.md)): events and snapshots. Decisions it relies on: DD-04 (storage tiers), DD-07 (two-stage snapshots), DD-08 (Pi integrates Ah/Wh), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without a valid clock), DD-12 (WAL, `synchronous=FULL`), DD-13 (RAM buffer not persisted), DD-23 (retention), DD-25 (upload watermark), DD-41 (invalid fields NULL).
+Status: **Agreed 2026-11-02** (DD-45 to DD-50 and DD-74, [decisions.md](decisions.md)); DD-75 (from the D8 sweep) parked 2026-11-02; open points in section 8. Builds on D1 ([architecture.md](architecture.md)): `aggregator`, `maintenance`, `db_writer`, `cloud_uploader`; D2 ([database.md](database.md)): tables and retention; D5 ([lifecycle.md](lifecycle.md)): link states, clock validity; D6 ([fault-handling.md](fault-handling.md)): events and snapshots. Decisions it relies on: DD-04 (storage tiers), DD-07 (two-stage snapshots), DD-08 (Pi integrates Ah/Wh), DD-09 (daily at 00:00 local), DD-10 (`sample_count`), DD-11 (no timestamps without a valid clock), DD-12 (WAL, `synchronous=FULL`), DD-13 (RAM buffer not persisted), DD-23 (retention), DD-25 (upload watermark), DD-41 (invalid fields NULL).
 
 Requirements: S10.1 (SQLite WAL, power loss loses at most the last record), S10.2 (last 1 h of 1 s data in RAM), S10.3 (10-min min/avg/max + Ah/Wh), S10.4 (daily record at 00:00 local + equivalent cycles), S10.5 / S10.6 (events, ±60 s snapshot), S10.7 (retention: 10-min 30 days, daily and events ≥ 2 years), S10.8 (< 200 MB after 4 years), S10.11 (CSV export), S10.12 (DB download, scp), S10.13 (CSV opens in Excel), S10.14 (daily backup to a second location, keep last 7), S10.15 (optional cloud upload, queued, never blocks logging), S10.17 (gap after restart logged), S9 (graphs with time ranges and min–max bands).
 
@@ -134,7 +134,7 @@ flowchart TB
 
 DD-50, extends DD-25:
 
-- Off unless enabled in the TOML file (needs TE IT approval, P1.7). Credentials only in the TOML file / a key file, not in the source (DD-75).
+- Off unless enabled in the TOML file (needs TE IT approval, P1.7). Credentials only in the TOML file / a key file, not in the source (DD-75, parked 2026-11-02).
 - `cloud_uploader` reads with its own read-only connection; it never writes except its watermark through `db_writer`, so it can never block or slow down logging (S10.15).
 - Tables: `agg_10min`, `agg_daily`, `event`, `soh` and **complete snapshots** (`snapshot.complete` = 1 with their samples, S11.1). Watermark per table: last acknowledged `ts` or `id`. Events whose `cleared_ts` changed are re-sent by `id` (DD-25).
 - Order per cycle: events first (S11.7, ≤ 30 s), then snapshots, then aggregates. Cycle every 10 s while there is something to send, exponential back-off up to 10 min while offline.
@@ -142,7 +142,7 @@ DD-50, extends DD-25:
 
 ## 8. Decisions
 
-Proposed 2026-10-28 (DD-74 and DD-75: 2026-10-29, D8 sweep), see [decisions.md](decisions.md):
+Agreed 2026-11-02, except DD-75 (from the D8 sweep), parked 2026-11-02; see [decisions.md](decisions.md):
 
 | ID | Decision |
 |---|---|

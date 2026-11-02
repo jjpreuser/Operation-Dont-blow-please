@@ -1,6 +1,6 @@
 # D4 – Fan control
 
-Status: **Proposed 2026-10-28**, to be agreed (DD-51 to DD-55, [decisions.md](decisions.md); DD-76 agreed 2026-10-29: a dead fan is switched off and the other runs at 100 %, details DD-85 proposed; state FAN_OFF added to the E12 diagram in section 5 on 2026-10-29, DD-85); open points in section 6. Builds on D1 ([architecture.md](architecture.md)): `fan_controller`; D5 ([lifecycle.md](lifecycle.md)): link states, heartbeat liveness (DD-26); D6 ([fault-handling.md](fault-handling.md)): E12 merged into the fault set. Decisions it relies on: DD-16 (OFFLINE behaviour from CONFIG), DD-24 (fan tables only from CONFIG), DD-28 (100 % before CONFIG and with action 0), DD-39 (E12 Pi-only), DD-41 (invalid fields), DD-42 (E-STOP → off).
+Status: **Agreed 2026-11-02, except DD-54, still proposed** (DD-51 to DD-55, [decisions.md](decisions.md); DD-76 agreed 2026-10-29: a dead fan is switched off and the other runs at 100 %, details DD-85 agreed 2026-11-02; state FAN_OFF added to the E12 diagram in section 5 on 2026-10-29, DD-85); open points in section 6. Builds on D1 ([architecture.md](architecture.md)): `fan_controller`; D5 ([lifecycle.md](lifecycle.md)): link states, heartbeat liveness (DD-26); D6 ([fault-handling.md](fault-handling.md)): E12 merged into the fault set. Decisions it relies on: DD-16 (OFFLINE behaviour from CONFIG), DD-24 (fan tables only from CONFIG), DD-28 (100 % before CONFIG and with action 0), DD-39 (E12 Pi-only), DD-41 (invalid fields), DD-42 (E-STOP → off).
 
 Requirements: S6.1 (fan control on the Pi), S6.2 (table from the MCU, linear interpolation, ≤ 8 points, duty ± 1 %), S6.3 (max of NTC1 and NTC3 tables), S6.4 (on 30 °C / off 27 °C, ≥ 30 % while on, 100 % at 45 °C), S6.5 (100 % on E05, E-stop overrides), S6.6 (E12 when speed < 70 % of expected for 5 s), S6.7 (hardware fallback, D10), S6.8 (100 % on E17), E7.7 (E-stop → fans off), S8 (fan duty and speed shown), Tables C and C2. UART draft V2 §6–7: CONFIG fan fields and tables.
 
@@ -126,7 +126,7 @@ stateDiagram-v2
 
 ## 6. Decisions
 
-Proposed 2026-10-28; DD-52 and DD-55 agreed 2026-10-28; DD-76 agreed 2026-10-29; DD-85 proposed 2026-10-29. See [decisions.md](decisions.md):
+DD-51, DD-53 and DD-85 agreed 2026-11-02; DD-52 and DD-55 agreed 2026-10-28; DD-76 agreed 2026-10-29; DD-54 proposed 2026-10-28. See [decisions.md](decisions.md):
 
 | ID | Decision |
 |---|---|

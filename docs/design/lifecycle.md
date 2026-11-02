@@ -1,6 +1,6 @@
 # D5 – Pi app lifecycle and comm-loss state machine
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); **in review since 2026-10-29** for the decisions proposed that day: DD-69 (faults shown and logged in WAIT_CONFIG, from the D6 error code list) and DD-77 to DD-80 (D8 sweep: decisions in this document that had no DD; DD-77 revised 2026-11-02 for cage, DD-87); open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); **in review since 2026-10-29** for the decisions proposed that day: DD-69 (faults shown and logged in WAIT_CONFIG, from the D6 error code list) and DD-77 to DD-80 (D8 sweep: decisions in this document that had no DD; DD-77 revised 2026-11-02 for cage, DD-87); DD-69 and DD-78 to DD-80 agreed 2026-11-02, DD-77 still proposed; open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
 
 Requirements: S2.4 (config from the MCU before live values), S3.6 (fault reset from the dashboard), S3.8 (MCU reports E11 when Pi frames stop, 5 s), S5.8 (telemetry 1 s, faults ≤ 100 ms), S7.4 (full-screen within 60 s, no login), S8.9 (states + priority), S8.12 ("BMS communication lost" after 3 s), S9.10 (event log), S10.10/S10.16 (UTC, NTP + RTC), S10.17 (logging resumes ≤ 60 s, gap logged).
 
@@ -192,13 +192,13 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 | DD-31 | Clock validity from `chrony`; events from before the clock was valid wait in a RAM queue (max 100); clock steps > 2 s logged as `TIME_ADJUSTED`. |
 | DD-32 | Display shows "Monitor service restarting…" when the core is gone, separate from "BMS communication lost". |
 
-Proposed 2026-10-29 (from the D6 error code list, [fault-handling.md](fault-handling.md)):
+Agreed 2026-11-02 (from the D6 error code list, [fault-handling.md](fault-handling.md)):
 
 | ID | Decision |
 |---|---|
 | DD-69 | In WAIT_CONFIG, faults from valid frames are shown and logged as when ONLINE; measurements stay hidden and are not sampled (S2.4). Makes E15 CONFIG_INVALID visible, since the MCU then sends no valid CONFIG. |
 
-Proposed 2026-10-29 (D8 sweep: decisions in this document that had no DD):
+Agreed 2026-11-02, except DD-77, still proposed (D8 sweep: decisions in this document that had no DD):
 
 | ID | Decision |
 |---|---|
