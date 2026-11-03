@@ -6,7 +6,7 @@ Raspberry Pi monitor app for the TE Connectivity BESS (4S3P LiFePO4 battery ener
 
 - `monitor/` – Pi monitor app, Cargo workspace (empty so far; Rust, pinned toolchain per S1.2). Renamed from `Pi/` on 2026-10-29: the repo follows S1.3 (`/monitor`, `/protocol`, `/firmware`, `/docs`, DD-71); `/protocol` and `/firmware` come once the firmware team agrees to work in this repo
 - `docs/design/` – Mermaid design diagrams (source of truth, mirrored to Miro) and `decisions.md` (design decision log DD-xx; read before designing/implementing)
-- `docs/testing/` – test plan; `test-levels.md` defines test levels L0–L5 and Cloud
+- `docs/testing/` – `test-levels.md` defines test levels L0–L5 and Cloud; `test-plan.md` lists the tests per requirement (firmware, combined, non-firmware)
 - `Research/BESS_Requirements_VX.X.pdf` – full requirements document (tables A–I referenced below live here)
 - `Research/STM32_Pi_UART_Interface_Draft_V2.docx` – firmware team's MCU↔Pi UART interface (V2 is current, protocol 0x03 with MCU-calculated SoC; V1 kept for history; MCU STM32G071RB): frame envelope, TELEMETRY/FAULT_UPDATE/CONFIG/HEARTBEAT/FAULT_RESET payloads, error catalogue, CONFIG with limits and fan tables. The Pi takes battery config, limits and fan tables from CONFIG (DD-24, DD-40)
 
