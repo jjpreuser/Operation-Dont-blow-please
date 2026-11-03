@@ -4,7 +4,7 @@ Raspberry Pi monitor app for the TE Connectivity BESS (4S3P LiFePO4 battery ener
 
 ## Repo layout
 
-- `monitor/` – Pi monitor app, Cargo workspace (empty so far; Rust, pinned toolchain per S1.2). Renamed from `Pi/` on 2026-10-29: the repo follows S1.3 (`/monitor`, `/protocol`, `/firmware`, `/docs`, DD-71); `/protocol` and `/firmware` come once the firmware team agrees to work in this repo
+- `monitor/` – Pi monitor app, Cargo workspace (Rust, toolchain pinned in `rust-toolchain.toml` per S1.2; first crate `bess-core` with the fan curve, D4 §4; CI in `.github/workflows/monitor-ci.yml` runs fmt, clippy and `cargo test`). Renamed from `Pi/` on 2026-10-29: the repo follows S1.3 (`/monitor`, `/protocol`, `/firmware`, `/docs`, DD-71); `/protocol` and `/firmware` come once the firmware team agrees to work in this repo
 - `docs/design/` – Mermaid design diagrams (source of truth, mirrored to Miro) and `decisions.md` (design decision log DD-xx; read before designing/implementing)
 - `docs/testing/` – `test-levels.md` defines test levels L0–L5 and Cloud; `test-plan.md` lists the tests per requirement (firmware, combined, non-firmware)
 - `Research/BESS_Requirements_VX.X.pdf` – full requirements document (tables A–I referenced below live here)

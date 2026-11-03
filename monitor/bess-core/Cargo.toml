@@ -1,0 +1,9 @@
+[package]
+name = "bess-core"
+description = "BESS Pi monitor core service"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true

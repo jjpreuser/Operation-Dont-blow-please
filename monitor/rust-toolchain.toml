@@ -1,0 +1,4 @@
+# Pinned toolchain (S1.2)
+[toolchain]
+channel = "1.98.1"
+components = ["rustfmt", "clippy"]

@@ -1,0 +1,35 @@
+name: monitor CI
+
+# L0 static checks + L1 unit tests for the Pi monitor app (S1.9, S1.12)
+on:
+  push:
+    paths: ["monitor/**", ".github/workflows/monitor-ci.yml"]
+  pull_request:
+    paths: ["monitor/**", ".github/workflows/monitor-ci.yml"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: monitor
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    name: fmt, clippy, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # rustup installs the pinned toolchain from monitor/rust-toolchain.toml
+      - name: Toolchain
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: monitor
+      - name: L0 – cargo fmt --check
+        run: cargo fmt --all --check
+      - name: L0 – cargo clippy (zero warnings)
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: L1 – cargo test
+        run: cargo test --workspace
