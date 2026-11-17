@@ -127,7 +127,7 @@ Every task that logs an event or changes `core_state` sends it to `db_writer` (D
 | `protocol` | lib | Frame envelope, CRC-16/CCITT-FALSE, encoder + decoder for all UART draft messages, CONFIG validation; tested against the draft's reference frames and C-generated frames (S5.11, DD-40). Shared with the `/protocol` spec. |
 | `bess-api` | lib | Serde types for the HTTP/JSON API and live stream (used by core, display and dashboard tests). |
 | `bess-core` | bin | All tasks above. |
-| `bess-display` | bin | Native touchscreen UI; only talks to `bess-api` over the Unix socket. |
+| `bess-display` | bin | Native touchscreen UI on the 5-inch Touch Display 2 (720 × 1280, DD-89); only talks to `bess-api` over the Unix socket. |
 | `bess-fan-failsafe` | bin | Small separate program that writes 100 % to both fan controllers over I2C and exits; run by systemd from `ExecStopPost=` of `bess-core` and from an early boot unit (DD-59, [fan-hardware.md](fan-hardware.md) §4). |
 
 Repository layout (DD-71; agreed 2026-11-02) follows S1.3: `/monitor` (this workspace, renamed from `Pi/` on 2026-10-29), `/protocol` (UART specification, the one document for C and Rust, S5.10, with reference frames and the CONFIG validation list), `/firmware` (C, MCU) and `/docs`. `/protocol` and `/firmware` are filled once the firmware team agrees to work in this repository; until then the UART specification stays their draft in `Research/`.
@@ -153,6 +153,8 @@ Agreed 2026-11-02:
 
 Proposed 2026-11-02:
 
-- DD-87 Toolkit: egui/eframe + `egui_plot` inside the cage kiosk compositor; `cargo-deny` and `cargo-about` in CI; to check on the Pi 4 touchscreen.
+- DD-87 Toolkit: egui/eframe + `egui_plot` inside the cage kiosk compositor; `cargo-deny` and `cargo-about` in CI; to check on the Pi 4 with the Touch Display 2.
+- DD-88 (proposed) Pi header pin map in [pi-pinout.md](pi-pinout.md): MCU UART on the PL011 (GPIO14/15), serial console off.
+- DD-89 Touchscreen: Raspberry Pi Touch Display 2, 5-inch, 720 × 1280, DSI.
 
 Open: SoH method (D9). Fan controller hardware and core-down fallback proposed in D10 ([fan-hardware.md](fan-hardware.md), DD-56 to DD-61).
