@@ -155,18 +155,25 @@ pub fn encode(id: MessageId, sequence: u8, payload: &[u8]) -> Result<Vec<u8>, En
             actual: payload.len(),
         });
     }
+    Ok(build(id, sequence, payload))
+}
+
+/// [`encode`] without the length check, for callers whose payload type has
+/// the exact length by construction (the typed messages).
+pub(crate) fn build(id: MessageId, sequence: u8, payload: &[u8]) -> Vec<u8> {
+    debug_assert_eq!(payload.len(), id.payload_len());
     let mut out = Vec::with_capacity(payload.len() + OVERHEAD);
     out.extend_from_slice(&HEADER);
     #[expect(
         clippy::cast_possible_truncation,
         reason = "N <= MAX_PAYLOAD_LEN <= 255, asserted at compile time above"
     )]
-    let len = expected as u8;
+    let len = id.payload_len() as u8;
     out.extend_from_slice(&[PROTOCOL_VERSION, id as u8, len, sequence]);
     out.extend_from_slice(payload);
     let crc = crc16(&out[2..]);
     out.extend_from_slice(&crc.to_le_bytes());
-    Ok(out)
+    out
 }
 
 /// Sender-side sequence counter: +1 per emitted frame, modulo 256.
