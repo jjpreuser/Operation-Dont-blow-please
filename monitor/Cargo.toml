@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = []
+members = ["protocol"]
 
 [workspace.package]
 version = "0.1.0"
