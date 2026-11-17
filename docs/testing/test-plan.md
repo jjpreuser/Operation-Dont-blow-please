@@ -35,7 +35,7 @@ The tests marked "real MCU" need the firmware and a Pi connected over UART. Unti
 | S1.3 | Must | I | L0 | Check the repo layout | `/firmware`, `/monitor`, `/protocol` and `/docs` exist with the agreed content |
 | S1.5 | Should | T | L1 | Run the hardware-free logic of both code bases on a PC | State machine, SoC, fan curve and limit checks build and pass with no hardware attached |
 | S1.8 | Should | D | L3, L5 | Read both versions on the dashboard, raise a fault, read the stored event | Both are MAJOR.MINOR.PATCH, shown correctly and stored with the fault (DD-36) |
-| S1.9 | Should | T | L0 | CI runs the build, format and static checks of both code bases | C: `-Wall -Wextra`, clang-format, cppcheck clean. Rust: `cargo fmt`, `cargo clippy` clean. Zero warnings |
+| S1.9 | Should | T | L0 | CI runs the build, format and static checks of both code bases | C: `-Wall -Wextra`, clang-format, cppcheck clean. Rust: `cargo fmt`, `cargo clippy` (all + pedantic), `cargo doc` and `cargo deny` clean. Zero warnings |
 | S1.11 | Should | I | L0 | Check the branch protection and a sample of merged pull requests | One repo; merges to main only through a pull request reviewed by another team member |
 | S1.12 | Should | T | L0, L1 | CI runs the Unity/Ceedling and `cargo test` suites on a push | Runs on every push; every error code has trigger and recovery tests; the fan curve has tests |
 | S1.13 | Must | I | L0 | Review `/docs` against the list on the card | All eight documents are present and current |

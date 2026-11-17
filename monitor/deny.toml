@@ -1,0 +1,32 @@
+# cargo-deny configuration for the Pi monitor workspace, run in CI (.github/workflows/monitor-ci.yml).
+# Docs: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+all-features = true
+
+# RustSec advisory database: known vulnerabilities, unmaintained and yanked crates.
+[advisories]
+yanked = "deny"
+
+# DD-19: only free, open-source software with a permissive licence.
+# Adding a licence to this list (for example MPL-2.0 for the serialport crate,
+# or Unicode-3.0, used by unicode-ident) is a DD-19 decision: record it in
+# docs/design/decisions.md first.
+[licenses]
+allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause"]
+confidence-threshold = 0.93
+
+# Our own crates are not published (publish = false), so their licence is not checked.
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Path dependencies between our own (unpublished) crates are fine.
+allow-wildcard-paths = true
+
+# Crates only from crates.io, no git or other registries.
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

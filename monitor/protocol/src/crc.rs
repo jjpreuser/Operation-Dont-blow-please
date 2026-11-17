@@ -5,6 +5,7 @@ const POLY: u16 = 0x1021;
 const INIT: u16 = 0xFFFF;
 
 /// CRC over `data`. In a frame this covers version through payload (frame offsets 2..=5+N).
+#[must_use]
 pub fn crc16(data: &[u8]) -> u16 {
     data.iter().fold(INIT, |mut crc, &byte| {
         crc ^= u16::from(byte) << 8;

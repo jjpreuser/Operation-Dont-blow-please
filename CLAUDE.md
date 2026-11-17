@@ -4,18 +4,22 @@ Raspberry Pi monitor app for the TE Connectivity BESS (4S3P LiFePO4 battery ener
 
 ## Repo layout
 
-- `monitor/` – Pi monitor app, Cargo workspace (Rust, toolchain pinned in `rust-toolchain.toml` per S1.2; no crates yet, the test `bess-core` with the fan curve was removed 2026-11-17; CI in `.github/workflows/monitor-ci.yml` runs fmt, clippy and `cargo test`). Renamed from `Pi/` on 2026-10-29: the repo follows S1.3 (`/monitor`, `/protocol`, `/firmware`, `/docs`, DD-71); `/protocol` and `/firmware` come once the firmware team agrees to work in this repo
+- `monitor/` – Pi monitor app, Cargo workspace (Rust, toolchain pinned in `rust-toolchain.toml` per S1.2; crates: `protocol` (Miro card C1); the test `bess-core` with the fan curve was removed 2026-11-17; CI in `.github/workflows/monitor-ci.yml` runs fmt, clippy with `pedantic`, rustdoc, `cargo test` and cargo-deny (`monitor/deny.toml`, DD-19 licence list)). Renamed from `Pi/` on 2026-10-29: the repo follows S1.3 (`/monitor`, `/protocol`, `/firmware`, `/docs`, DD-71); `/protocol` and `/firmware` come once the firmware team agrees to work in this repo
 - `docs/design/` – Mermaid design diagrams (source of truth, mirrored to Miro) and `decisions.md` (design decision log DD-xx; read before designing/implementing)
 - `docs/testing/` – `test-levels.md` defines test levels L0–L5 and Cloud; `test-plan.md` lists the tests per requirement (firmware, combined, non-firmware)
 - `Research/BESS_Requirements_VX.X.pdf` – full requirements document (tables A–I referenced below live here)
 - `Research/STM32_Pi_UART_Interface_Draft_V2.docx` – firmware team's MCU↔Pi UART interface (V2 is current, protocol 0x03 with MCU-calculated SoC; V1 kept for history; MCU STM32G071RB): frame envelope, TELEMETRY/FAULT_UPDATE/CONFIG/HEARTBEAT/FAULT_RESET payloads, error catalogue, CONFIG with limits and fan tables. The Pi takes battery config, limits and fan tables from CONFIG (DD-24, DD-40)
+
+## Branches
+
+Work from `development` (created 2026-11-17): start each change on its own branch off `development` (for example `monitor/<topic>` or `ci/<topic>`) and open a pull request into `development` for review on GitHub. `main` is only updated from `development`. Don't commit straight to `development` or `main`.
 
 ## Required tests for software
 
 Any software written in this repo must come with these two test levels (`docs/testing/test-levels.md`, S1.9, S1.12). A change is not finished until both pass.
 
 - **L1 unit tests:** new or changed logic gets unit tests in the same change, run on a PC without hardware (S1.5). Rust uses `cargo test`, C firmware uses Unity/Ceedling. Every error code needs trigger and recovery tests, and the fan curve needs tests.
-- **L0 static checks in CI:** run automatically on every push, zero warnings. Rust: `cargo fmt --check` and `cargo clippy`. C firmware: `-Wall -Wextra`, clang-format and cppcheck. L1 tests also run in CI. If the CI for a part of the repo does not exist yet, set it up with the first code in that part.
+- **L0 static checks in CI:** run automatically on every push, zero warnings. Rust: `cargo fmt --check`, `cargo clippy` with `clippy::all` and `clippy::pedantic` as errors (set in `monitor/Cargo.toml`; a justified exception is a local `#[expect(lint, reason = "...")]`), `cargo doc` with `-D warnings`, `--locked` builds and `cargo deny check`. C firmware: `-Wall -Wextra`, clang-format and cppcheck. L1 tests also run in CI. If the CI for a part of the repo does not exist yet, set it up with the first code in that part.
 
 ## Miro board (requirements backlog)
 
