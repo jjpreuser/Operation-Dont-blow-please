@@ -6,12 +6,15 @@ members = ["protocol"]
 version = "0.1.0"
 edition = "2021"
 license = "MIT OR Apache-2.0"
+publish = false # internal crates, never on crates.io
 
 [workspace.lints.rust]
 warnings = "deny"
 
 [workspace.lints.clippy]
 all = { level = "deny", priority = -1 }
+# Stricter idiom checks (S1.9 zero warnings); allow a lint locally with #[expect(..., reason = "...")].
+pedantic = { level = "deny", priority = -1 }
 
 [profile.release]
 panic = "abort" # DD-17

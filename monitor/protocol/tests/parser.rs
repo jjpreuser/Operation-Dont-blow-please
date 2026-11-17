@@ -218,7 +218,7 @@ fn random_noise_never_panics_and_the_buffer_stays_bounded() {
     // Simple LCG so the test is deterministic without a dependency.
     let mut state: u32 = 0x1234_5678;
     let mut noise = vec![0u8; 100_000];
-    for b in noise.iter_mut() {
+    for b in &mut noise {
         state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
         *b = (state >> 24) as u8;
         // Plenty of header bytes so many candidate frames are tried.

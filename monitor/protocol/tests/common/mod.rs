@@ -20,7 +20,7 @@ pub const CONFIG: &str = "
     41 00 00 C2 01 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
     00 00 00 00 0D 76";
 
-/// CONFIG_REQUEST, sequence 0.
+/// `CONFIG_REQUEST`, sequence 0.
 pub const CONFIG_REQUEST: &str = "AA 55 03 22 00 00 BA F7";
 
 /// HEARTBEAT, boot 1, revision 1, sequence 0.
@@ -48,7 +48,8 @@ pub fn hex(text: &str) -> Vec<u8> {
 /// Builds a frame with any version, id and length, for malformed-input tests.
 /// The CRC is correct for the given bytes.
 pub fn raw_frame(version: u8, id: u8, sequence: u8, payload: &[u8]) -> Vec<u8> {
-    let mut out = vec![0xAA, 0x55, version, id, payload.len() as u8, sequence];
+    let len = u8::try_from(payload.len()).expect("test payload fits the length byte");
+    let mut out = vec![0xAA, 0x55, version, id, len, sequence];
     out.extend_from_slice(payload);
     let crc = crc16(&out[2..]);
     out.extend_from_slice(&crc.to_le_bytes());
