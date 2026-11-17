@@ -1,0 +1,9 @@
+[package]
+name = "protocol"
+description = "MCU <-> Pi UART protocol V2 (version 0x03): frames, CRC-16, messages, CONFIG (DD-40)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
