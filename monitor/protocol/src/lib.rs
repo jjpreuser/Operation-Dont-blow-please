@@ -7,6 +7,7 @@
 //! Values stay in wire units (10 mA, 0.1 °C, negative current = charging);
 //! `bess-core` converts them to SI units once when it builds a sample (DD-72).
 
+pub mod config;
 pub mod crc;
 pub mod frame;
 pub mod messages;
