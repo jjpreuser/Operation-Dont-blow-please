@@ -7,8 +7,8 @@
 //! kept, not rejected (DD-68): a `state` outside 0–4, fault bits 19–31, an
 //! unknown `CONFIG_ACK` status or `RESET_ACK` result.
 //!
-//! CONFIG is carried as its raw 190 bytes here; decoding and validating it
-//! (§6–7) is the job of a separate module.
+//! CONFIG is carried as its raw 190 bytes here; [`crate::config`] decodes and
+//! validates it (§6–7).
 
 use crate::frame::{self, Frame, MessageId};
 use std::fmt;
@@ -24,19 +24,19 @@ pub const RESET_ACK_LEN: usize = MessageId::ResetAck.payload_len();
 // Little-endian field access at fixed offsets. Callers pass arrays of the exact
 // payload length, so every offset is in range.
 
-fn u16_at(b: &[u8], at: usize) -> u16 {
+pub(crate) fn u16_at(b: &[u8], at: usize) -> u16 {
     u16::from_le_bytes([b[at], b[at + 1]])
 }
 
-fn i16_at(b: &[u8], at: usize) -> i16 {
+pub(crate) fn i16_at(b: &[u8], at: usize) -> i16 {
     i16::from_le_bytes([b[at], b[at + 1]])
 }
 
-fn u32_at(b: &[u8], at: usize) -> u32 {
+pub(crate) fn u32_at(b: &[u8], at: usize) -> u32 {
     u32::from_le_bytes([b[at], b[at + 1], b[at + 2], b[at + 3]])
 }
 
-fn put(b: &mut [u8], at: usize, bytes: &[u8]) {
+pub(crate) fn put(b: &mut [u8], at: usize, bytes: &[u8]) {
     b[at..at + bytes.len()].copy_from_slice(bytes);
 }
 
@@ -242,7 +242,25 @@ pub struct Telemetry {
     pub soc_centi_pct: u16,
 }
 
+/// The identity of a CONFIG (§5, J): the MCU's `boot_counter` and its
+/// `config_revision`. TELEMETRY carries the same pair, so the Pi can tell
+/// whether its accepted CONFIG still matches the MCU.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Identity {
+    pub boot_counter: u32,
+    pub config_revision: u32,
+}
+
 impl Telemetry {
+    /// The CONFIG identity this frame was sent under (offsets 28 and 32).
+    #[must_use]
+    pub fn identity(self) -> Identity {
+        Identity {
+            boot_counter: self.boot_counter,
+            config_revision: self.config_revision,
+        }
+    }
+
     #[must_use]
     pub fn from_bytes(b: &[u8; TELEMETRY_LEN]) -> Telemetry {
         Telemetry {
