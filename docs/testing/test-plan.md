@@ -76,7 +76,7 @@ The tests marked "real MCU" need the firmware and a Pi connected over UART. Unti
 | Req | M | V | Level | Test | Pass when |
 |---|---|---|---|---|---|
 | S1.2 | Must | I | L0 | Check the source and `rust-toolchain.toml` | Pi app is Rust; toolchain version is pinned |
-| S7.4 | Must | D | L5 | Cold-start the Pi 10 times and time power-on to app on screen | Full-screen without login, ≤ 60 s every time |
+| S7.4 | Must | D | L5 | Cold-start the Pi 10 times with the Touch Display 2 and time power-on to app on screen (the display alone can take up to a minute, DD-89) | Full-screen without login, ≤ 60 s every time |
 
 ### Fans
 
@@ -93,7 +93,7 @@ The tests marked "real MCU" need the firmware and a Pi connected over UART. Unti
 
 ### Touchscreen display
 
-Run on the real touchscreen (L5) with values from the simulator. Automated checks at L3 run against the API (DD-14) that feeds the display.
+Run on the real touchscreen (L5: Raspberry Pi Touch Display 2, 5-inch, 720 × 1280, DD-89) with values from the simulator. Automated checks at L3 run against the API (DD-14) that feeds the display.
 
 | Req | M | V | Level | Test | Pass when |
 |---|---|---|---|---|---|

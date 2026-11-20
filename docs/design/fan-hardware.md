@@ -63,7 +63,7 @@ flowchart LR
 - **E-stop:** the fans' 12 V comes through the safety relay (E7.7), so the E-stop stops the fans whatever the PWM line does.
 - **Tach:** each fan's tach goes to its own Pi GPIO with a 10 kΩ pull-up to 3.3 V (never to 12 V) and a small RC filter against PWM and relay noise (E10). The EMC2101 ALERT/TACH pin is not connected.
 - **Two controllers** (DD-84 agreed, DD-86 proposed, electronics to confirm): a dead fan is switched off by setting its own controller to 0 % while the other runs at 100 % (DD-76), so the fan must stop at 0 % duty (DD-61). The EMC2101 address 0x4C is fixed, so fan 2's breakout goes on its own I2C bus: proposal I2C-3 on GPIO4/GPIO5 (`dtoverlay=i2c3`); alternative a TCA9548A I2C mux on I2C-1.
-- **Pins:** GPIO17 and GPIO27 (tach), GPIO4 and GPIO5 (I2C-3) are a proposal; they avoid I2C-1 (GPIO2/3) and the MCU UART (GPIO14/15). To be confirmed with the wiring diagram.
+- **Pins:** GPIO17 and GPIO27 (tach), GPIO4 and GPIO5 (I2C-3) are a proposal; they avoid I2C-1 (GPIO2/3) and the MCU UART (GPIO14/15). To be confirmed with the wiring diagram. The full Pi header map (physical pins, ground and power, Pi config) is in [pi-pinout.md](pi-pinout.md); change both together.
 - **EMC2101 registers** written by `bess-core` on both controllers at start and after a detected reset (DD-57):
 
 | Register | Value | Meaning |
