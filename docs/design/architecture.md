@@ -126,7 +126,7 @@ Every task that logs an event or changes `core_state` sends it to `db_writer` (D
 |---|---|---|
 | `protocol` | lib | Frame envelope, CRC-16/CCITT-FALSE, encoder + decoder for all UART draft messages, CONFIG validation; tested against the draft's reference frames and C-generated frames (S5.11, DD-40). Shared with the `/protocol` spec. |
 | `bess-api` | lib | Serde types for the HTTP/JSON API and live stream (used by core, display and dashboard tests). |
-| `bess-core` | bin (lib first) | All tasks above. Started 2026-11-23 as a library of I/O-free task logic, tested on a PC (S1.5): `link` = `link_supervisor` (D5 §2, DD-90). The binary with the tokio tasks follows. |
+| `bess-core` | bin (lib first) | All tasks above. Started 2026-11-23 as a library of I/O-free task logic, tested on a PC (S1.5): `link` = `link_supervisor` (D5 §2, DD-90), `fan` = the duty rules of `fan_controller` (D4 §3–4, DD-91; E12 and the dead-fan rule still to come). The binary with the tokio tasks follows. |
 | `bess-display` | bin | Native touchscreen UI on the 5-inch Touch Display 2 (720 × 1280, DD-89); only talks to `bess-api` over the Unix socket. |
 | `bess-fan-failsafe` | bin | Small separate program that writes 100 % to both fan controllers over I2C and exits; run by systemd from `ExecStopPost=` of `bess-core` and from an early boot unit (DD-59, [fan-hardware.md](fan-hardware.md) §4). |
 
