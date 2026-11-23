@@ -1,0 +1,13 @@
+[package]
+name = "bess-core"
+description = "Pi monitor core service: BMS link supervision and, later, fan control, logging and the API (DD-02, DD-71)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+protocol = { path = "../protocol" }
+
+[lints]
+workspace = true
