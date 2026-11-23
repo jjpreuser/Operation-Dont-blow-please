@@ -126,9 +126,9 @@ In WAIT_CONFIG it does (DD-69): the fault bitmap needs no CONFIG, and a fault th
 
 | What | Rule |
 |---|---|
-| Active fault list | Sorted like the LED (S3.7): highest severity first, then lowest code. Shows code, name, description, severity, local time of occurrence (S8.10). |
+| Active fault list | Sorted like the LED (S3.7): highest severity first, then lowest code; unknown codes E20–E32 last (DD-92). Shows code, name, description, severity, local time of occurrence (S8.10). |
 | Red banner | On every page while any Critical fault is active (S8.10). Stays while OFFLINE (D5 §6). |
-| Value colours | Yellow at the warning level, red at the protection limit (S8.11). Value-based, not from events (DD-81): red at the CONFIG protection limit (S2.4), yellow at the S8.11 level. A value can be red while the MCU has not tripped yet (detection delay). CONFIG V2 has no warning levels, so the S8.11 yellow levels are display settings in the Pi's TOML file (DD-81). |
+| Value colours | Yellow at the warning level, red at the protection limit (S8.11). Value-based, not from events (DD-81): red at the CONFIG protection limit (S2.4), yellow at the S8.11 level. A value can be red while the MCU has not tripped yet (detection delay). CONFIG V2 has no warning levels, so the S8.11 yellow levels are display settings in the Pi's TOML file (DD-81). Which limit colours which value (proposed, DD-92): cells `ov_trip` / `uv_trip`; current `chg_oc` / `dis_oc` by direction; NTC1 the charge trips while CHARGING, else the discharge trips; NTC2 `terminal_ot`; NTC3 `air_ot`; NTC4 and SoC yellow only; pack voltage and power not coloured. |
 | Fault log page | `event WHERE kind IN ('FAULT','WARNING')`: time, code, name, severity, trigger value + unit, cleared time; filter by severity and date, sort by column (S9.9). |
 | Event log page | `event WHERE kind = 'SYSTEM'` (S9.10). |
 | Names, descriptions, severities | Only from the generated Table A module (S4.1). The DB stores the code plus `kind` and `severity` for the fault log filters (D2); names and descriptions are looked up when shown, so all screens and the cloud use the same text (DD-82). |

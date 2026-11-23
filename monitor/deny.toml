@@ -13,7 +13,21 @@ yanked = "deny"
 # or Unicode-3.0, used by unicode-ident) is a DD-19 decision: record it in
 # docs/design/decisions.md first.
 [licenses]
-allow = ["MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause"]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    # Added for the egui display (DD-93, proposed 2026-11-23): permissive
+    # licences of crates in its dependency tree (foldhash, zlib-rs: Zlib;
+    # libloading: ISC; unicode-ident, unicode-properties: Unicode-3.0) ...
+    "Zlib",
+    "ISC",
+    "Unicode-3.0",
+    # ... and the font licences of egui's built-in fonts (epaint_default_fonts).
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+]
 confidence-threshold = 0.93
 
 # Our own crates are not published (publish = false), so their licence is not checked.
