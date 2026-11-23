@@ -7,4 +7,5 @@
 //! that own the serial port, the channels and the database come later and
 //! call into these modules; the `bess-core` binary starts with them.
 
+pub mod fan;
 pub mod link;
