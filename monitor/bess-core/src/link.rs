@@ -40,6 +40,7 @@
 use protocol::config::{Config, FirmwareVersion, Rejection};
 use protocol::messages::{AckStatus, Heartbeat, Identity, Message, CONFIG_LEN};
 use std::fmt;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// Link timeout before a CONFIG is installed (D5 §2, S8.12).
@@ -190,6 +191,55 @@ impl FlapFilter {
     }
 }
 
+/// The link as the other tasks see it: published by the `link_supervisor`
+/// task on a `watch` and carried with every MCU frame it forwards
+/// (docs/design/architecture.md §2 "mcu config"; DD-24, DD-70).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LinkView {
+    pub state: LinkState,
+    /// The installed CONFIG, the only source of limits, capacity and fan
+    /// tables (DD-24).
+    pub config: Option<Arc<Config>>,
+    /// Identity of the latest TELEMETRY or `FAULT_UPDATE`.
+    pub identity: Option<Identity>,
+    /// How often the link went OFFLINE since core start. A task that sees
+    /// it change knows the link was down in between (DD-37), even when it
+    /// never saw the OFFLINE state itself.
+    pub outages: u32,
+}
+
+impl Default for LinkView {
+    /// Core start: OFFLINE, nothing known.
+    fn default() -> LinkView {
+        LinkView {
+            state: LinkState::Offline,
+            config: None,
+            identity: None,
+            outages: 0,
+        }
+    }
+}
+
+impl LinkView {
+    /// The installed CONFIG.
+    #[must_use]
+    pub fn config(&self) -> Option<&Config> {
+        self.config.as_deref()
+    }
+
+    /// Live measurements may be shown and sampled: only ONLINE (S2.4).
+    #[must_use]
+    pub fn shows_values(&self) -> bool {
+        self.state == LinkState::Online
+    }
+
+    /// The fault bitmap of a frame is used: `WAIT_CONFIG` and ONLINE (DD-69).
+    #[must_use]
+    pub fn shows_faults(&self) -> bool {
+        self.state != LinkState::Offline
+    }
+}
+
 /// The `link_supervisor` logic (D5 §2).
 #[derive(Debug, Clone)]
 pub struct LinkSupervisor {
@@ -200,11 +250,13 @@ pub struct LinkSupervisor {
     identity: Option<Identity>,
     /// The installed CONFIG. Kept while OFFLINE so an unchanged identity can
     /// resume ONLINE (DD-27); dropped when the identity changes (DD-55).
-    config: Option<Box<Config>>,
+    config: Option<Arc<Config>>,
     /// Firmware of the last accepted CONFIG, kept when the CONFIG is dropped.
     firmware: Option<FirmwareVersion>,
     /// CONFIG identity whose rejection has been logged.
     rejected: Option<Identity>,
+    /// How often the link went OFFLINE ([`LinkView::outages`]).
+    outages: u32,
     next_heartbeat: Instant,
     next_request: Instant,
     flap: FlapFilter,
@@ -233,6 +285,7 @@ impl LinkSupervisor {
             config: None,
             firmware: None,
             rejected: None,
+            outages: 0,
             next_heartbeat: now,
             next_request: now,
             flap: FlapFilter::default(),
@@ -280,6 +333,18 @@ impl LinkSupervisor {
     #[must_use]
     pub fn identity(&self) -> Option<Identity> {
         self.identity
+    }
+
+    /// What the other tasks need of the link (the `watch` of
+    /// docs/design/architecture.md §2).
+    #[must_use]
+    pub fn view(&self) -> LinkView {
+        LinkView {
+            state: self.state,
+            config: self.config.clone(),
+            identity: self.identity,
+            outages: self.outages,
+        }
     }
 
     /// The HEARTBEAT payload: the installed identity, or zero (§8).
@@ -449,7 +514,7 @@ impl LinkSupervisor {
         out.push(Output::Event(LinkEvent::ConfigAccepted(Box::new(
             config.clone(),
         ))));
-        self.config = Some(Box::new(config));
+        self.config = Some(Arc::new(config));
         out.push(Output::Send(Message::Heartbeat(self.heartbeat())));
         self.next_heartbeat = now + self.heartbeat_period();
     }
@@ -460,6 +525,9 @@ impl LinkSupervisor {
             return;
         }
         self.state = to;
+        if to == LinkState::Offline {
+            self.outages = self.outages.wrapping_add(1);
+        }
         self.flap.change(from, to, now, out);
         if to == LinkState::WaitConfig {
             out.push(Output::Send(Message::ConfigRequest));

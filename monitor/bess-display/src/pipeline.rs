@@ -61,7 +61,7 @@ impl Pipeline {
             let out = self.link.on_message(now, &message);
             self.handle(now, out, &mut to_mcu);
             if let Message::Telemetry(t) | Message::FaultUpdate(t) = &message {
-                self.live.on_frame(t, &self.link);
+                self.live.on_frame(t, &self.link.view());
             }
             self.run_fans(now);
         }
@@ -100,7 +100,7 @@ impl Pipeline {
 
     #[must_use]
     pub fn view(&self) -> LiveState {
-        self.live.view(&self.link, self.fan, &self.warn)
+        self.live.view(&self.link.view(), self.fan, &self.warn)
     }
 
     #[must_use]

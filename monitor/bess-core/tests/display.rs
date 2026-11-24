@@ -383,7 +383,7 @@ impl Bench {
     fn frame(&mut self, t: Telemetry) {
         self.now += ms(1000);
         self.link.on_message(self.now, &Message::Telemetry(t));
-        self.live.on_frame(&t, &self.link);
+        self.live.on_frame(&t, &self.link.view());
     }
 
     fn config(&mut self, identity: Identity) {
@@ -393,7 +393,8 @@ impl Bench {
     }
 
     fn view(&self) -> bess_core::live::LiveState {
-        self.live.view(&self.link, None, &WarningLevels::default())
+        self.live
+            .view(&self.link.view(), None, &WarningLevels::default())
     }
 }
 
