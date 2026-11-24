@@ -11,6 +11,7 @@
 pub mod aggregate;
 pub mod colour;
 pub mod db;
+pub mod detector;
 pub mod fan;
 pub mod faults;
 pub mod link;

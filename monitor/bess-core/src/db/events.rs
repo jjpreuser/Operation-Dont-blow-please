@@ -144,7 +144,9 @@ impl SystemType {
 /// DD-35).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct FrameValues {
-    pub signals: Signals,
+    /// `None` in `WAIT_CONFIG`: without a CONFIG the measurements are hidden
+    /// and not stored (DD-69); state and validity still are.
+    pub signals: Option<Signals>,
     pub state: McuState,
     pub validity: Validity,
 }
@@ -191,7 +193,7 @@ impl NewEvent {
 }
 
 /// The MCU state as stored, the same names as on the screen (S8.9).
-fn state_text(state: McuState) -> String {
+pub(crate) fn state_text(state: McuState) -> String {
     match state {
         McuState::Idle => ShownState::Idle,
         McuState::Charging => ShownState::Charging,
@@ -262,7 +264,7 @@ pub(super) fn insert_event_on(conn: &Connection, e: &NewEvent) -> Result<i64> {
         text(e.source.as_str()),
         e.system_type.map_or(Value::Null, |t| text(t.as_str())),
     ];
-    let values = e.frame.map(|f| f.signals.values());
+    let values = e.frame.and_then(|f| f.signals).map(|s| s.values());
     params.extend(
         values
             .unwrap_or_default()
@@ -303,7 +305,7 @@ mod tests {
             source: EventSource::Mcu,
             system_type: None,
             frame: Some(FrameValues {
-                signals,
+                signals: Some(signals),
                 state: McuState::Fault,
                 validity: Validity(0x05FF),
             }),
