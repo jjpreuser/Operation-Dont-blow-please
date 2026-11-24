@@ -19,6 +19,7 @@ mod maintenance;
 mod schema;
 mod snapshots;
 
+pub use config::capacity_ah;
 pub(crate) use events::state_text;
 pub use events::{EventKind, EventSeverity, EventSource, FrameValues, NewEvent, SystemType};
 pub use maintenance::DailyReport;

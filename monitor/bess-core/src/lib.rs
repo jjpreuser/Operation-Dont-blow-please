@@ -1,12 +1,12 @@
 //! The Pi monitor core service, `bess-core` (docs/design/architecture.md §2,
 //! DD-02, DD-70, DD-71).
 //!
-//! For now this is the decision logic and the database layer, written so it
-//! runs in `cargo test` on a PC (S1.5): each logic module takes inputs and the
-//! current time and returns what to send, log or show, and [`db::Store`] is
-//! what the `db_writer` thread will call. The tokio tasks that own the serial
-//! port, the channels and the database thread come later and call into these
-//! modules; the `bess-core` binary starts with them.
+//! The logic modules have no I/O, so they run in `cargo test` on a PC
+//! (S1.5): each takes inputs and the current time and returns what to send,
+//! log or show. [`pipeline::Core`] chains them from the UART bytes to the
+//! database commands; [`runtime`] runs it in a tokio task between the serial
+//! port threads and the [`writer`] (`db_writer`) thread over [`db::Store`];
+//! the `bess-core` binary (`main.rs`) starts it all (DD-99).
 
 pub mod aggregate;
 pub mod colour;
@@ -16,8 +16,11 @@ pub mod fan;
 pub mod faults;
 pub mod link;
 pub mod live;
+pub mod pipeline;
 pub mod ring;
+pub mod runtime;
 pub mod sample;
 pub mod signals;
 pub mod state;
 pub mod wallclock;
+pub mod writer;

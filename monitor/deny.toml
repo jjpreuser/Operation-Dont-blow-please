@@ -9,9 +9,9 @@ all-features = true
 yanked = "deny"
 
 # DD-19: only free, open-source software with a permissive licence.
-# Adding a licence to this list (for example MPL-2.0 for the serialport crate,
-# or Unicode-3.0, used by unicode-ident) is a DD-19 decision: record it in
-# docs/design/decisions.md first.
+# Adding a licence to this list is a DD-19 decision: record it in
+# docs/design/decisions.md first. (The MCU UART uses our own termios code
+# through rustix, DD-98, so serialport and its MPL-2.0 licence are not needed.)
 [licenses]
 allow = [
     "MIT",

@@ -18,7 +18,7 @@ use jiff::Timestamp;
 use protocol::config::FirmwareVersion;
 use protocol::messages::{Identity, McuState, Validity};
 use rusqlite::types::Value;
-use rusqlite::Connection;
+use rusqlite::{Connection, OptionalExtension};
 use std::fmt::Write as _;
 use std::sync::OnceLock;
 
@@ -231,6 +231,23 @@ impl Store {
     /// one).
     pub fn insert_event(&mut self, e: &NewEvent) -> Result<i64> {
         insert_event_on(&self.conn, e)
+    }
+
+    /// The type of the newest system event, for `LOG_GAP` at start-up: a
+    /// previous run that ended cleanly logged `SHUTDOWN` last (DD-30).
+    ///
+    /// # Errors
+    ///
+    /// SQLite errors.
+    pub fn last_system_type(&self) -> Result<Option<String>> {
+        Ok(self
+            .conn
+            .query_row(
+                "SELECT system_type FROM event WHERE kind = 'SYSTEM' ORDER BY id DESC LIMIT 1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?)
     }
 
     /// Marks an active fault or warning cleared (S9.9). Returns `false` if
