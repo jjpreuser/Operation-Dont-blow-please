@@ -7,7 +7,12 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+jiff = "1.0.2"
 protocol = { path = "../protocol" }
+rusqlite = { version = "0.43.0", features = ["bundled"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile = "3.27.0"
