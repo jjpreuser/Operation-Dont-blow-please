@@ -17,7 +17,9 @@ mod config;
 mod events;
 mod maintenance;
 mod schema;
+mod snapshots;
 
+pub(crate) use events::state_text;
 pub use events::{EventKind, EventSeverity, EventSource, FrameValues, NewEvent, SystemType};
 pub use maintenance::DailyReport;
 pub use schema::SCHEMA_VERSION;

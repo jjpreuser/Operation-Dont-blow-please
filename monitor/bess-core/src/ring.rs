@@ -10,6 +10,7 @@
 
 use crate::signals::Signals;
 use jiff::Timestamp;
+use protocol::messages::McuState;
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
 
@@ -26,6 +27,8 @@ pub struct RingEntry {
     pub at: Instant,
     /// Receive time, UTC; `None` while the clock is not valid (DD-11).
     pub utc: Option<Timestamp>,
+    /// MCU state in that TELEMETRY (stored with snapshot rows).
+    pub state: McuState,
     pub signals: Signals,
 }
 
@@ -105,6 +108,7 @@ mod tests {
         RingEntry {
             at: t0 + Duration::from_secs(secs),
             utc: None,
+            state: McuState::Idle,
             signals,
         }
     }
