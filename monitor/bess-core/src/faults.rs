@@ -143,6 +143,20 @@ const TABLE_A: [(&str, Severity, &str); 19] = [
     ),
 ];
 
+/// The E20–E32 row of the error code table (fault-handling.md §1): the
+/// severity an unknown code is logged with. Table A gives these codes none;
+/// on the screen they keep no severity (sorted last, no red banner, DD-92),
+/// in the event log they are PROTECTION faults with a snapshot (DD-68,
+/// DD-97).
+pub const UNKNOWN_LOG_SEVERITY: Severity = Severity::Protection;
+
+/// The severity a code is logged with: its Table A severity, or
+/// [`UNKNOWN_LOG_SEVERITY`] for E20–E32.
+#[must_use]
+pub fn log_severity(code: FaultCode) -> Severity {
+    info(code).severity.unwrap_or(UNKNOWN_LOG_SEVERITY)
+}
+
 /// The Table A row for `code`, or `UNKNOWN` for E20–E32.
 #[must_use]
 pub fn info(code: FaultCode) -> FaultInfo {
@@ -182,4 +196,33 @@ pub fn active(bits: FaultBits) -> Vec<FaultInfo> {
 pub fn critical(bits: FaultBits) -> bool {
     bits.codes()
         .any(|c| info(c).severity == Some(Severity::Critical))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn code(n: u8) -> FaultCode {
+        FaultCode::new(n).unwrap()
+    }
+
+    #[test]
+    fn known_codes_log_their_table_a_severity() {
+        assert_eq!(log_severity(code(5)), Severity::Protection);
+        assert_eq!(log_severity(code(3)), Severity::LatchedProtection);
+        assert_eq!(log_severity(code(8)), Severity::Critical);
+        assert_eq!(log_severity(code(13)), Severity::Warning);
+    }
+
+    #[test]
+    fn unknown_codes_follow_the_e20_e32_row() {
+        for n in 20..=32 {
+            assert_eq!(log_severity(code(n)), UNKNOWN_LOG_SEVERITY);
+            // On the screen they still have no severity: last, no banner.
+            let shown = info(code(n));
+            assert_eq!((shown.name, shown.severity), ("UNKNOWN", None));
+        }
+        assert_eq!(UNKNOWN_LOG_SEVERITY, Severity::Protection);
+        assert!(!critical(FaultBits(1 << 19)));
+    }
 }

@@ -31,7 +31,7 @@
 //! Events need a valid clock: the caller passes the UTC receive time, and
 //! keeps events from before the clock is valid in its RAM queue (DD-31).
 
-use crate::db::{EventKind, EventSeverity, EventSource, FrameValues, NewEvent, SystemType};
+use crate::db::{EventKind, EventSource, FrameValues, NewEvent, SystemType};
 use crate::faults::{self, Severity};
 use crate::link::LinkState;
 use crate::ring::{RingBuffer, RingEntry};
@@ -391,10 +391,10 @@ impl EventDetector {
 
 /// The event for a raised code (DD-22, DD-33, DD-36, DD-68, DD-97).
 fn fault_event(frame: &Frame<'_>, code: FaultCode, detail: Option<&str>) -> NewEvent {
-    let info = faults::info(code);
-    let kind = match info.severity {
-        Some(Severity::Warning) => EventKind::Warning,
-        // Unknown codes E20–E32 count as faults (DD-68).
+    // From the error code table; E20–E32 have their own row (PROTECTION).
+    let severity = faults::log_severity(code);
+    let kind = match severity {
+        Severity::Warning => EventKind::Warning,
         _ => EventKind::Fault,
     };
     let t = frame.telemetry;
@@ -402,11 +402,7 @@ fn fault_event(frame: &Frame<'_>, code: FaultCode, detail: Option<&str>) -> NewE
         ts: frame.utc,
         kind,
         code: Some(code.number()),
-        // Table A gives an unknown code no severity; it is stored as
-        // PROTECTION (DD-97).
-        severity: info
-            .severity
-            .map_or(EventSeverity::Protection, EventSeverity::from),
+        severity: severity.into(),
         source: EventSource::Mcu,
         system_type: None,
         frame: Some(FrameValues {

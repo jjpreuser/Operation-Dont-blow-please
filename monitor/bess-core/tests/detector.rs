@@ -184,6 +184,9 @@ fn every_error_code_has_a_trigger_and_a_recovery() {
             },
             "E{code:02} kind (DD-33)"
         );
+        // Table A severity; the E20–E32 row of the error code table says
+        // PROTECTION.
+        assert_eq!(info.severity.is_none(), code >= 20, "E{code:02} in Table A");
         let expected_severity = info
             .severity
             .map_or(EventSeverity::Protection, EventSeverity::from);
