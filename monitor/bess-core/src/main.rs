@@ -12,15 +12,13 @@
 //! Defaults: `/var/lib/bess/bess.db` and `/dev/ttyAMA0` (DD-88).
 
 use bess_core::db::{CoreKey, Store};
-use bess_core::pipeline::{startup_events, Core, DbCommand};
-use bess_core::runtime::{self, interim_clock, link_pair};
+use bess_core::runtime::{self, interim_clock, link_pair, startup_events, Core};
 use bess_core::wallclock::parse_utc_text;
-use bess_core::writer::{self, WriterSettings, DEFAULT_SOFT_LIMIT_BYTES};
+use bess_core::writer::{self, DbCommand, WriterSettings, DEFAULT_SOFT_LIMIT_BYTES};
 use jiff::tz::TimeZone;
 use std::path::PathBuf;
 use std::process::ExitCode;
-use std::time::Instant;
-use tokio::sync::watch;
+use std::sync::Arc;
 
 const DEFAULT_DB: &str = "/var/lib/bess/bess.db";
 const DEFAULT_SERIAL: &str = "/dev/ttyAMA0";
@@ -108,27 +106,19 @@ fn start() -> Result<(), String> {
     runtime::spawn_reader(reader_port, end.from_mcu).map_err(|e| e.to_string())?;
     let tx_thread = runtime::spawn_writer(port, end.to_mcu).map_err(|e| e.to_string())?;
 
-    let core = Core::new(Instant::now(), tz, open_faults, last_firmware);
-    // The API server will hold the receiver (DD-14).
-    let (live, _live_rx) = watch::channel(core.live());
+    let core = Core::new(tz, open_faults, last_firmware);
+    // `api_server` will hold the live state receiver (DD-14).
+    let _live = core.live();
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|e| e.to_string())?;
-    let core = rt.block_on(runtime::run(
-        core,
-        link,
-        db.clone(),
-        live,
-        interim_clock,
-        stop_signal(),
-    ));
-    let stats = core.parser_stats();
+    let summary = rt.block_on(core.run(link, db.clone(), Arc::new(interim_clock), stop_signal()));
     eprintln!(
-        "bess-core: stopped; {} frames lost, parser {stats:?}",
-        core.frames_lost_total()
+        "bess-core: stopped; link {}, {} frames lost, parser {:?}",
+        summary.link, summary.frames_lost, summary.parser
     );
-    drop(core);
+    drop(rt);
     drop(db);
     let _ = tx_thread.join();
     writer

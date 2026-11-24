@@ -6,12 +6,46 @@
 //! systemd journal) and the thread goes on with the next one, so one bad
 //! row can never stop the logging. When every sender is gone the thread
 //! ends and hands the store back.
+//!
+//! Commands from one task are applied in the order that task sent them;
+//! between tasks the order is the order of arrival.
 
-use crate::db::{Result, Store};
-use crate::pipeline::DbCommand;
+use crate::aggregate::AggRow;
+use crate::db::{CoreKey, NewEvent, Result, Store};
+use crate::detector::Write;
 use jiff::tz::TimeZone;
+use jiff::Timestamp;
+use protocol::config::Config;
+use protocol::messages::AckStatus;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::thread::{self, JoinHandle};
+
+/// One thing for the `db_writer` thread to do.
+#[derive(Debug, Clone, PartialEq)]
+pub enum DbCommand {
+    /// A closed 10-min interval (`aggregator`).
+    Agg(Box<AggRow>),
+    /// A fault, clear or snapshot write (`event_detector`).
+    Detector(Write),
+    /// A system event (`link_supervisor`, start-up and shutdown).
+    Event(NewEvent),
+    /// A validated CONFIG and the `CONFIG_ACK` status it got (DD-43).
+    McuConfig {
+        received: Timestamp,
+        config: Box<Config>,
+        status: AckStatus,
+    },
+    /// A `core_state` value (`maintenance`: `last_alive_ts`).
+    CoreState { key: CoreKey, value: String },
+    /// The daily job (DD-47, `aggregator`); `capacity_ah` from the installed
+    /// CONFIG.
+    DailyJob {
+        now: Timestamp,
+        capacity_ah: Option<f64>,
+    },
+    /// The size guard (`maintenance`, after a snapshot is complete, D3 §4).
+    SizeGuard { now: Timestamp },
+}
 
 /// What the writer needs besides the commands.
 #[derive(Debug, Clone)]

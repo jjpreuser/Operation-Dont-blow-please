@@ -17,7 +17,7 @@
 use crate::colour::{levels, SampleLevels, WarningLevels};
 use crate::fan::FanDemand;
 use crate::faults::{self, FaultInfo};
-use crate::link::{LinkState, LinkSupervisor};
+use crate::link::{LinkState, LinkView};
 use crate::sample::Sample;
 use crate::state::{shown_state, Shown, ShownState};
 use protocol::config::FirmwareVersion;
@@ -66,10 +66,10 @@ impl LiveTracker {
         LiveTracker::default()
     }
 
-    /// Takes a valid TELEMETRY or `FAULT_UPDATE` frame. Call it after
-    /// `LinkSupervisor::on_message` for the same frame, so the link state
-    /// already reflects its identity.
-    pub fn on_frame(&mut self, frame: &Telemetry, link: &LinkSupervisor) {
+    /// Takes a valid TELEMETRY or `FAULT_UPDATE` frame, with the link as it
+    /// is after `LinkSupervisor::on_message` handled the same frame, so the
+    /// link state already reflects its identity.
+    pub fn on_frame(&mut self, frame: &Telemetry, link: &LinkView) {
         if link.shows_faults() {
             self.frame = Some(*frame);
         }
@@ -90,13 +90,8 @@ impl LiveTracker {
 
     /// The screen contents now.
     #[must_use]
-    pub fn view(
-        &self,
-        link: &LinkSupervisor,
-        fan: Option<FanDemand>,
-        warn: &WarningLevels,
-    ) -> LiveState {
-        let state = link.state();
+    pub fn view(&self, link: &LinkView, fan: Option<FanDemand>, warn: &WarningLevels) -> LiveState {
+        let state = link.state;
         let shown = shown_state(state, self.frame.map(|f| f.state));
         let config = link.config();
         let values = match (state, self.sample, config) {

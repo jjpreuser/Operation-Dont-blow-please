@@ -13,12 +13,7 @@
 //! Ah / Wh: each sample with a valid current counts for exactly one telemetry
 //! period, so missing samples are not filled in and a clock step cannot add
 //! or remove charge (DD-46).
-//!
-//! [`Recorder`] puts the two RAM tiers together: every sample goes to the
-//! ring buffer, and only samples with a valid clock are aggregated (DD-11,
-//! DD-74).
 
-use crate::ring::{RingBuffer, RingEntry};
 use crate::signals::{Signals, CURRENT_A, PACK_V, SIGNAL_COUNT};
 use crate::wallclock::add_ms;
 use jiff::Timestamp;
@@ -215,36 +210,10 @@ impl Aggregator {
     }
 }
 
-/// The RAM tiers for one stream of samples.
-#[derive(Debug, Clone, Default)]
-pub struct Recorder {
-    pub ring: RingBuffer,
-    pub aggregator: Aggregator,
-}
-
-impl Recorder {
-    #[must_use]
-    pub fn new() -> Recorder {
-        Recorder::default()
-    }
-
-    /// One TELEMETRY sample while ONLINE (DD-74). `entry.utc` is `None` while
-    /// the clock is not valid: the sample then only goes to the ring buffer
-    /// and nothing is timestamped or aggregated (DD-11). `period` is the
-    /// CONFIG `telemetry_ms`. Returns a closed `agg_10min` row to write.
-    pub fn on_sample(&mut self, entry: RingEntry, period: Duration) -> Option<AggRow> {
-        self.ring.push(entry);
-        entry
-            .utc
-            .and_then(|utc| self.aggregator.add(utc, &entry.signals, period))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::signals::SIGNAL_COLUMNS;
-    use std::time::Instant;
 
     const SECOND: Duration = Duration::from_secs(1);
 
@@ -468,46 +437,5 @@ mod tests {
         s.fan1_rpm = Some(f64::NAN);
         agg.add(base, &s, SECOND);
         assert_eq!(stat(&agg.flush().unwrap(), "fan1_rpm"), Stat::default());
-    }
-
-    fn entry(at: Instant, utc: Option<Timestamp>) -> RingEntry {
-        RingEntry {
-            at,
-            utc,
-            state: protocol::messages::McuState::Charging,
-            signals: signals(13.0, 1.0),
-        }
-    }
-
-    #[test]
-    fn recorder_aggregates_only_with_a_valid_clock() {
-        let t0 = Instant::now();
-        let base = ts("2026-11-24T10:00:00Z");
-        let mut rec = Recorder::new();
-        // Clock not valid yet: ring buffer only (DD-11).
-        for s in 0..5 {
-            assert!(rec
-                .on_sample(entry(t0 + SECOND * s, None), SECOND)
-                .is_none());
-        }
-        assert_eq!(rec.ring.len(), 5);
-        assert!(rec.aggregator.peek().is_none());
-        // Clock valid mid-interval: the first interval starts there (partial).
-        rec.on_sample(entry(t0 + SECOND * 5, Some(at(base, 425))), SECOND);
-        assert_eq!(rec.ring.len(), 6);
-        let row = rec.aggregator.flush().unwrap();
-        assert_eq!((row.ts, row.sample_count), (base, 1));
-    }
-
-    #[test]
-    fn recorder_returns_the_closed_row() {
-        let t0 = Instant::now();
-        let base = ts("2026-11-24T10:00:00Z");
-        let mut rec = Recorder::new();
-        rec.on_sample(entry(t0, Some(at(base, 599))), SECOND);
-        let row = rec
-            .on_sample(entry(t0 + SECOND, Some(at(base, 600))), SECOND)
-            .unwrap();
-        assert_eq!((row.ts, row.sample_count), (base, 1));
     }
 }
