@@ -46,10 +46,11 @@ Severity (Table A): **Warning** = logged and shown only. **Protection** = chargi
 | E17 | ENCLOSURE_OVERTEMP | Warning | Air downstream of the battery (NTC3) too hot. Fans 100 %. | WARNING | `t_air_out_c` | Fans 100 % (S6.8) |
 | E18 | CHARGE_OVERTEMP | Protection | Battery temperature too high for charging (> 50 °C). Charging stopped. | FAULT + snapshot | `t_cell_c` | – |
 | E19 | DISCHARGE_UNDERTEMP | Protection | Battery temperature too low for discharging (< −10 °C). Discharging stopped. | FAULT + snapshot | `t_cell_c` | – |
+| E20–E32 | UNKNOWN | Protection (Pi rule, not in Table A) | Fault bit not defined in Table A; firmware and Pi disagree on the error codes. | FAULT + snapshot | – | Bits 19–31, reserved in UART draft V2 §5. Logged as kind FAULT with severity PROTECTION, with a snapshot (DD-68, DD-97); shown as `UNKNOWN` after the known codes, without the red banner (DD-92). Until the S4.1 Table A source has these codes, a set bit means the firmware is newer than the Pi |
 
 - Battery temperature is NTC1 (`t_cell_c`, E3.15), so E05, E06, E18 and E19 log `t_cell_c`.
 - E03, E04 and E07: the AFE cuts the current within milliseconds, so the current at report is usually near 0 A. The log shows it labelled "at report" (DD-22).
-- Bits 19–31 are reserved; a set one is logged as an unknown fault (DD-68).
+- Bits 19–31 are reserved; a set one is an unknown code, handled as in the E20–E32 row (DD-68).
 
 ## 2. Raise and clear
 
@@ -182,7 +183,7 @@ sequenceDiagram
 | PIN_LOCK | 5 wrong PINs. |
 | SNAPSHOT_DELETED | Size guard removed old snapshots (DD-23). |
 | FRAMES_LOST | Jump in the MCU `sequence` between two valid frames while not OFFLINE; `detail` = number of frames lost; at most 1 per minute (DD-66). |
-| Unknown fault | Fault bit 19–31 set in an MCU frame: kind FAULT, `code` = bit + 1, name `UNKNOWN` (DD-68). |
+| Unknown fault | Fault bit 19–31 set in an MCU frame: kind FAULT, severity PROTECTION, `code` = bit + 1, name `UNKNOWN` (E20–E32 row in section 1; DD-68, DD-97). |
 
 ## 7. Decisions
 
