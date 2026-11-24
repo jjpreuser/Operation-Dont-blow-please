@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["protocol", "bess-core"]
+members = ["protocol", "bess-core", "bess-display"]
 
 [workspace.package]
 version = "0.1.0"
