@@ -30,6 +30,12 @@ pub const SIGNAL_COLUMNS: [&str; SIGNAL_COUNT] = [
     "fan2_rpm",
 ];
 
+/// Decimals per signal in the CSV export (S10.11), in [`SIGNAL_COLUMNS`]
+/// order: the wire resolution (1 mV, 10 mA, 0.1 °C, 0.01 %), 10 mW for
+/// power, 0.1 % for the fan duty and 1 rpm for the fan speeds. Min, average
+/// and max of a signal use the same number.
+pub const SIGNAL_DECIMALS: [usize; SIGNAL_COUNT] = [3, 2, 2, 3, 3, 3, 3, 1, 1, 1, 1, 2, 1, 0, 0];
+
 /// Index of `current_a` in [`Signals::values`].
 pub const CURRENT_A: usize = 1;
 /// Index of `pack_v` in [`Signals::values`].

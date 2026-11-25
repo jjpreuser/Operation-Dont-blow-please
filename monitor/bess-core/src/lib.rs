@@ -11,10 +11,12 @@
 
 pub mod aggregate;
 pub mod colour;
+pub mod csv;
 pub mod db;
 pub mod detector;
 pub mod fan;
 pub mod faults;
+pub mod history;
 pub mod link;
 pub mod live;
 pub mod ring;
