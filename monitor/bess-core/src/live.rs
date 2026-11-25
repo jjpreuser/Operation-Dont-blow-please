@@ -15,6 +15,7 @@
 //! Unix socket (DD-14, DD-18).
 
 use crate::colour::{levels, SampleLevels, WarningLevels};
+use crate::db::capacity_ah;
 use crate::fan::FanDemand;
 use crate::faults::{self, FaultInfo};
 use crate::link::{LinkState, LinkView};
@@ -112,7 +113,7 @@ impl LiveTracker {
             critical_banner: faults::critical(bits),
             fan,
             firmware: config.map(|c| c.firmware),
-            capacity_ah: config.map(|c| f64::from(c.capacity_mah) / 1000.0),
+            capacity_ah: config.map(capacity_ah),
         }
     }
 }

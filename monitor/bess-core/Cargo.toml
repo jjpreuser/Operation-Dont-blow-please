@@ -16,6 +16,8 @@ tokio = { version = "1.54.1", features = ["rt", "macros", "sync", "time", "signa
 workspace = true
 
 [dev-dependencies]
+# The simulated MCU end for the end-to-end tests.
+protocol = { path = "../protocol", features = ["sim"] }
 tempfile = "3.27.0"
 # Paused time: the end-to-end tests run the tasks on a virtual clock.
 tokio = { version = "1.54.1", features = ["test-util"] }

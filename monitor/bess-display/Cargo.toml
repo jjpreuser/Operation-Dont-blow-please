@@ -9,7 +9,13 @@ publish.workspace = true
 [dependencies]
 bess-core = { path = "../bess-core" }
 eframe = { version = "0.37.0", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
-protocol = { path = "../protocol" }
+jiff = "1.0.2"
+protocol = { path = "../protocol", features = ["sim"] }
+tokio = { version = "1.54.1", features = ["rt-multi-thread", "sync", "time"] }
 
 [lints]
 workspace = true
+
+[dev-dependencies]
+# Paused time: the preview tests run the core on a virtual clock.
+tokio = { version = "1.54.1", features = ["macros", "test-util"] }

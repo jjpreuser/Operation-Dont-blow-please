@@ -23,5 +23,7 @@ pub mod sample;
 pub mod signals;
 pub mod state;
 pub mod tasks;
+#[cfg(test)]
+mod test_util;
 pub mod wallclock;
 pub mod writer;

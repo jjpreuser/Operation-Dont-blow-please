@@ -118,7 +118,9 @@ version = "0.1.0"
 dependencies = [
  "bess-core",
  "eframe",
+ "jiff",
  "protocol",
+ "tokio",
 ]
 
 [[package]]

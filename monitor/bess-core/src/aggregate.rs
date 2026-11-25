@@ -214,12 +214,9 @@ impl Aggregator {
 mod tests {
     use super::*;
     use crate::signals::SIGNAL_COLUMNS;
+    use crate::test_util::{close, ts};
 
     const SECOND: Duration = Duration::from_secs(1);
-
-    fn ts(text: &str) -> Timestamp {
-        text.parse().unwrap()
-    }
 
     fn at(base: Timestamp, secs: i64) -> Timestamp {
         add_ms(base, secs * 1000)
@@ -235,10 +232,6 @@ mod tests {
 
     fn stat(row: &AggRow, column: &str) -> Stat {
         row.stats[SIGNAL_COLUMNS.iter().position(|c| *c == column).unwrap()]
-    }
-
-    fn close(a: f64, b: f64) -> bool {
-        (a - b).abs() < 1e-9
     }
 
     #[test]

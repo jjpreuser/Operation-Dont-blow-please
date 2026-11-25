@@ -204,7 +204,7 @@ All at the Cloud level, or by inspection. These tests start once TE IT approves 
 
 Status 2026-11-25: the tests written so far, all in `monitor/` and run by CI ([monitor-ci.yml](../../.github/workflows/monitor-ci.yml)) on every push. Paths are relative to `monitor/`; a file under `src/` holds its tests in a `tests` module at the bottom.
 
-`bess-core/tests/runtime.rs` runs the whole core in `cargo test` against a simulated MCU over an in-process link. It counts as L1 here: the L3 run on a virtual serial port with scripted scenarios is still to do for every requirement below.
+`bess-core/tests/runtime.rs` and the `bess-display` preview tests (`src/pipeline.rs`) run the whole core in `cargo test` against a simulated MCU (`protocol::sim`) over an in-process link. It counts as L1 here: the L3 run on a virtual serial port with scripted scenarios is still to do for every requirement below.
 
 | Req | Level done | Tests | What they cover | Still to do |
 |---|---|---|---|---|
@@ -214,7 +214,7 @@ Status 2026-11-25: the tests written so far, all in `monitor/` and run by CI ([m
 | S1.12 | L0, L1 | CI; `bess-core/tests/detector.rs` (`every_error_code_has_a_trigger_and_a_recovery`); `bess-core/tests/fan.rs` | `cargo test` on every push; trigger and recovery for every Table A code; the fan curve | E12 (waits for the fan tests); Unity/Ceedling |
 | S2.4 | L1 (Pi side) | `bess-core/tests/link.rs`, `bess-core/tests/runtime.rs`, `bess-core/tests/display.rs` | No live values before a valid CONFIG; invalid, unsupported and other-identity CONFIGs refused; a restart or new revision goes back to WAIT_CONFIG; faults show while waiting | L3, real MCU |
 | S5.9 | L1 | `protocol/tests/parser.rs`, `frame.rs`, `messages.rs`, `crc.rs` | Valid frames decode; bad CRC, length, version, unknown ID and truncated frames are counted and skipped; random noise never panics and the parser resyncs | L2 with frames from the C code |
-| S5.11 | – | `protocol/tests/common` | Reference frames typed in from the firmware draft, decoded and re-encoded | Frames generated from the C code in CI (needs the firmware) |
+| S5.11 | – | `protocol/src/reference.rs`, used by every test suite | Reference frames typed in from the firmware draft, decoded and re-encoded | Frames generated from the C code in CI (needs the firmware) |
 | S6.2 | L1 | `bess-core/tests/fan.rs` | Interpolation at, between and outside the points; 2 and 8 points; the table comes from CONFIG | L5 (PWM output not written yet) |
 | S6.3 | L1 | `bess-core/tests/fan.rs` | Higher curve wins; equal curves; an invalid input demands 100 % | – |
 | S6.4 | L1 | `bess-core/tests/fan.rs` | On at 30 °C with 30 %; stays on until 27 °C; no oscillation in the band; core start inside the band | – |

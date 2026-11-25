@@ -16,7 +16,7 @@ use bess_core::link::{LinkState, LinkSupervisor};
 use bess_core::live::{LiveTracker, Values};
 use bess_core::sample::Sample;
 use bess_core::state::{shown_state, Shown, ShownState};
-use common::{config_with, ms, telemetry_frame, BOOT1, BOOT2};
+use common::{bits, config_with, ms, telemetry_frame, BOOT1, BOOT2};
 use protocol::config::Config;
 use protocol::messages::{FaultBits, FaultCode, Identity, McuState, Message, Telemetry, Validity};
 use std::time::Instant;
@@ -325,15 +325,6 @@ fn shown_state_names() {
 }
 
 // --- S8.10 active faults ----------------------------------------------------
-
-fn bits(codes: &[u8]) -> FaultBits {
-    FaultBits(
-        codes
-            .iter()
-            .map(|&n| FaultCode::new(n).expect("1-32").mask())
-            .sum(),
-    )
-}
 
 #[test]
 fn faults_have_table_a_names() {

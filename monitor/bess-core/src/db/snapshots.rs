@@ -26,11 +26,10 @@ fn insert_row_sql() -> &'static str {
             let _ = write!(columns, ", {s}");
         }
         let n = 3 + SIGNAL_COLUMNS.len();
-        let placeholders: Vec<String> = (1..=n).map(|i| format!("?{i}")).collect();
         // A repeated time (clock stepped back) keeps the first row.
         format!(
             "INSERT OR IGNORE INTO snapshot_sample ({columns}) VALUES ({})",
-            placeholders.join(", ")
+            super::placeholders(n)
         )
     })
 }
@@ -171,9 +170,9 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::test_util::ts;
     use crate::db::{EventKind, EventSeverity, EventSource, NewEvent, SystemType};
     use crate::signals::Signals;
+    use crate::test_util::ts;
     use crate::wallclock::add_ms;
     use protocol::messages::McuState;
 

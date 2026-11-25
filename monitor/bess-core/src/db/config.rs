@@ -73,7 +73,7 @@ pub fn capacity_ah(config: &Config) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::test_util::ts;
+    use crate::test_util::ts;
 
     /// A CONFIG for storage tests; the content rules do not matter here,
     /// only that the bytes come back unchanged.

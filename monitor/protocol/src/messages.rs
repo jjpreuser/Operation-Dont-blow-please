@@ -207,6 +207,13 @@ impl FaultBits {
     }
 }
 
+impl FromIterator<FaultCode> for FaultBits {
+    /// The bitmap with these codes set.
+    fn from_iter<I: IntoIterator<Item = FaultCode>>(codes: I) -> FaultBits {
+        FaultBits(codes.into_iter().fold(0, |bits, code| bits | code.mask()))
+    }
+}
+
 /// TELEMETRY and `FAULT_UPDATE` payload (§4, 38 bytes). Both carry the same
 /// complete snapshot.
 ///

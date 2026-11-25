@@ -115,7 +115,7 @@ mod tests {
     use super::*;
     use crate::aggregate::{AggRow, Stat};
     use crate::db::events::{EventKind, EventSeverity, EventSource};
-    use crate::db::test_util::{amsterdam, close, ts};
+    use crate::test_util::{amsterdam, close, ts};
     use crate::wallclock::{add_ms, utc_text};
     use jiff::civil::date;
     use protocol::config::Config;

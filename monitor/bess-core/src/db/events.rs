@@ -216,8 +216,7 @@ fn insert_event_sql() -> &'static str {
             ", state, validity, detail, fw_version, app_version, boot_counter, config_revision, snapshot_id",
         );
         let n = columns.split(',').count();
-        let placeholders: Vec<String> = (1..=n).map(|i| format!("?{i}")).collect();
-        format!("INSERT INTO event ({columns}) VALUES ({})", placeholders.join(", "))
+        format!("INSERT INTO event ({columns}) VALUES ({})", super::placeholders(n))
     })
 }
 
@@ -307,7 +306,7 @@ pub(super) fn insert_event_on(conn: &Connection, e: &NewEvent) -> Result<i64> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::db::test_util::{close, ts};
+    use crate::test_util::{close, ts};
 
     fn fault(code: u8) -> NewEvent {
         let mut signals = Signals::default();
