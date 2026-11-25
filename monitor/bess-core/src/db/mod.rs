@@ -16,6 +16,7 @@ mod aggregates;
 mod config;
 mod events;
 mod history;
+pub use history::StoredCounts;
 mod maintenance;
 mod schema;
 mod snapshots;

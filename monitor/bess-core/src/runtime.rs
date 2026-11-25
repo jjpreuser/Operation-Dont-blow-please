@@ -95,6 +95,40 @@ pub fn interim_clock() -> Option<Timestamp> {
     (now.to_zoned_datetime(jiff::tz::TimeZone::UTC).year() >= BUILD_YEAR).then_some(now)
 }
 
+/// What a core start reads from the database before the tasks run (D5 §1).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Startup {
+    /// The faults still open in the event log, for reconciliation (DD-37).
+    pub open_faults: FaultBits,
+    /// The firmware of the newest accepted CONFIG (`FW_CHANGE`, DD-90).
+    pub last_firmware: Option<FirmwareVersion>,
+    /// `core_state.last_alive_ts`, for `LOG_GAP` (DD-30).
+    pub last_alive: Option<Timestamp>,
+    /// Whether the previous run ended with `SHUTDOWN`.
+    pub clean: bool,
+    /// Snapshots a crash left open, now marked complete (DD-97).
+    pub stale_snapshots: usize,
+}
+
+/// The start-up steps on a freshly opened store: completes a snapshot a
+/// crash left open, then reads what [`Startup`] holds.
+///
+/// # Errors
+///
+/// The store's errors.
+pub fn prepare_store(store: &mut crate::db::Store) -> crate::db::Result<Startup> {
+    let stale_snapshots = store.complete_stale_snapshots()?;
+    Ok(Startup {
+        open_faults: store.open_fault_codes()?,
+        last_firmware: store.latest_accepted_config()?.map(|c| c.firmware),
+        last_alive: store
+            .core_state(CoreKey::LastAliveTs)?
+            .and_then(|t| crate::wallclock::parse_utc_text(&t)),
+        clean: store.last_system_type()?.as_deref() == Some("SHUTDOWN"),
+        stale_snapshots,
+    })
+}
+
 /// The `STARTUP` and `LOG_GAP` events of a core start (DD-30, S10.17).
 /// `last_alive` is `core_state.last_alive_ts`; `clean` says whether the
 /// previous run ended with `SHUTDOWN`.
@@ -138,8 +172,8 @@ pub struct Summary {
 }
 
 /// The core before it runs: what it got from the database at start-up,
-/// and the two `watch`es other parts read (the live state for `api_server`,
-/// DD-14; the link).
+/// the two `watch`es other parts read (the live state for `api_server`,
+/// DD-14; the link) and the ring buffer.
 #[derive(Debug)]
 pub struct Core {
     tz: TimeZone,
@@ -147,6 +181,7 @@ pub struct Core {
     last_firmware: Option<FirmwareVersion>,
     live: watch::Sender<LiveState>,
     link: watch::Sender<LinkView>,
+    ring: SharedRing,
 }
 
 impl Core {
@@ -166,6 +201,7 @@ impl Core {
             last_firmware,
             live: watch::channel(live::initial()).0,
             link: watch::channel(LinkView::default()).0,
+            ring: SharedRing::new(),
         }
     }
 
@@ -179,6 +215,13 @@ impl Core {
     #[must_use]
     pub fn link(&self) -> watch::Receiver<LinkView> {
         self.link.subscribe()
+    }
+
+    /// The 1 h ring buffer the tasks fill, for the last-hour graphs and CSV
+    /// (DD-49): `api_server` will read it, the display preview does now.
+    #[must_use]
+    pub fn ring(&self) -> SharedRing {
+        self.ring.clone()
     }
 
     /// Runs the tasks until `shutdown` resolves or the MCU side of the link
@@ -200,7 +243,7 @@ impl Core {
         S: Future<Output = ()>,
     {
         let start = hub::now();
-        let ring = SharedRing::new();
+        let ring = self.ring;
         let (rx_frames, from_rx) = tmpsc::channel(QUEUE);
         let (to_tx, from_link) = tmpsc::channel(QUEUE);
         let (frames, _) = broadcast::channel(BROADCAST);

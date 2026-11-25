@@ -19,3 +19,4 @@ workspace = true
 [dev-dependencies]
 # Paused time: the preview tests run the core on a virtual clock.
 tokio = { version = "1.54.1", features = ["macros", "test-util"] }
+tempfile = "3.27.0"
