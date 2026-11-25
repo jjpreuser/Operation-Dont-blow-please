@@ -12,7 +12,7 @@
 
 use bess_core::db::capacity_ah;
 use protocol::messages::{
-    FaultBits, FaultCode, Identity, McuState, Message, Telemetry, Validity, TELEMETRY_LEN,
+    FaultBits, FaultCode, Identity, McuState, Message, TELEMETRY_LEN, Telemetry, Validity,
 };
 use protocol::reference;
 use protocol::sim::SimMcu;

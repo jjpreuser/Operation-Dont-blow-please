@@ -14,13 +14,13 @@
 //! Later this struct goes into `bess-api` and reaches the display over the
 //! Unix socket (DD-14, DD-18).
 
-use crate::colour::{levels, SampleLevels, WarningLevels};
+use crate::colour::{SampleLevels, WarningLevels, levels};
 use crate::db::capacity_ah;
 use crate::fan::FanDemand;
 use crate::faults::{self, FaultInfo};
 use crate::link::{LinkState, LinkView};
 use crate::sample::Sample;
-use crate::state::{shown_state, Shown, ShownState};
+use crate::state::{Shown, ShownState, shown_state};
 use protocol::config::FirmwareVersion;
 use protocol::messages::Telemetry;
 

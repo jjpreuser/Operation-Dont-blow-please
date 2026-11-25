@@ -7,11 +7,11 @@
 //! backup. The backup (S10.14, DD-48) is not written yet.
 
 use super::config::capacity_ah;
-use super::events::{insert_event_on, NewEvent, SystemType};
+use super::events::{NewEvent, SystemType, insert_event_on};
 use super::{Result, Store};
+use jiff::Timestamp;
 use jiff::civil::Date;
 use jiff::tz::TimeZone;
-use jiff::Timestamp;
 use rusqlite::OptionalExtension;
 
 /// What one run of the daily job did.
@@ -241,10 +241,12 @@ mod tests {
         let mut store = Store::open_in_memory().unwrap();
         add_snapshot(&store, "2026-11-01T12:00:00.000Z", true);
         let used = store.used_bytes().unwrap();
-        assert!(store
-            .size_guard(ts("2026-11-24T00:00:00Z"), used)
-            .unwrap()
-            .is_empty());
+        assert!(
+            store
+                .size_guard(ts("2026-11-24T00:00:00Z"), used)
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(count(&store, "SELECT count(*) FROM snapshot"), 1);
     }
 
@@ -261,10 +263,12 @@ mod tests {
                 .unwrap();
         }
         // Over any limit, but no snapshot left to delete: events stay.
-        assert!(store
-            .size_guard(ts("2026-11-24T00:00:00Z"), 0)
-            .unwrap()
-            .is_empty());
+        assert!(
+            store
+                .size_guard(ts("2026-11-24T00:00:00Z"), 0)
+                .unwrap()
+                .is_empty()
+        );
         assert_eq!(count(&store, "SELECT count(*) FROM event"), 50);
     }
 

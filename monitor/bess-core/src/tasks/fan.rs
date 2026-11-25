@@ -11,7 +11,7 @@
 //! Still to come: the EMC2101 output, the RPM reading and E12 (fan bench
 //! tests, DD-39), `FAN_CTRL_RESET` and the dead-fan rule (DD-84 to DD-86).
 
-use super::hub::{now, McuFrame, TICK};
+use super::hub::{McuFrame, TICK, now};
 use crate::fan::{FanController, FanDemand, FanInputs};
 use crate::link::LinkView;
 use protocol::messages::Telemetry;

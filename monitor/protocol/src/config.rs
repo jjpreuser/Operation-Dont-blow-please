@@ -27,7 +27,7 @@
 //!
 //! Values stay in wire units (mV, mA, 0.1 °C, 0.01 %, ms).
 
-use crate::messages::{i16_at, put, u16_at, u32_at, AckStatus, ConfigAck, Identity, CONFIG_LEN};
+use crate::messages::{AckStatus, CONFIG_LEN, ConfigAck, Identity, i16_at, put, u16_at, u32_at};
 use std::fmt;
 
 /// The only CONFIG schema this crate knows (offset 0).

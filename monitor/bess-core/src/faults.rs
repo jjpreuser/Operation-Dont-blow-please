@@ -171,8 +171,7 @@ pub fn info(code: FaultCode) -> FaultInfo {
             code,
             name: "UNKNOWN",
             severity: None,
-            description:
-                "Fault bit not defined in Table A; firmware and Pi disagree on the error codes.",
+            description: "Fault bit not defined in Table A; firmware and Pi disagree on the error codes.",
         },
     }
 }

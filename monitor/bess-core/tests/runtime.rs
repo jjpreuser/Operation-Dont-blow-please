@@ -8,14 +8,14 @@
 mod common;
 
 use bess_core::db::{CoreKey, Store, SystemType};
-use bess_core::detector::{Write, DETAIL_CLEARED_WHILE_DOWN};
+use bess_core::detector::{DETAIL_CLEARED_WHILE_DOWN, Write};
 use bess_core::link::{LinkState, LinkView};
 use bess_core::live::{LiveState, Values};
-use bess_core::runtime::{self, link_pair, startup_events, Core, Summary};
+use bess_core::runtime::{self, Core, Summary, link_pair, startup_events};
 use bess_core::tasks::hub::Clock;
 use bess_core::wallclock::add_ms;
-use bess_core::writer::{self, DbCommand, WriterSettings, DEFAULT_SOFT_LIMIT_BYTES};
-use common::{amsterdam, bits, telemetry_frame, ts, BOOT1};
+use bess_core::writer::{self, DEFAULT_SOFT_LIMIT_BYTES, DbCommand, WriterSettings};
+use common::{BOOT1, amsterdam, bits, telemetry_frame, ts};
 use protocol::messages::{AckStatus, FaultBits, McuState, Message, Validity};
 use protocol::reference;
 use protocol::sim::SimMcu;
@@ -240,14 +240,16 @@ async fn handshake_reaches_online_and_logs_the_config() {
     let d = b.finish().await;
     // The MCU got a CONFIG_REQUEST, a CONFIG_ACK (accepted) and then
     // heartbeats with the accepted identity (DD-26).
-    assert!(d
-        .received
-        .iter()
-        .any(|m| matches!(m, Message::ConfigRequest)));
-    assert!(d
-        .received
-        .iter()
-        .any(|m| matches!(m, Message::ConfigAck(a) if a.status == AckStatus::Accepted)));
+    assert!(
+        d.received
+            .iter()
+            .any(|m| matches!(m, Message::ConfigRequest))
+    );
+    assert!(
+        d.received
+            .iter()
+            .any(|m| matches!(m, Message::ConfigAck(a) if a.status == AckStatus::Accepted))
+    );
     let Some(Message::Heartbeat(last)) = d
         .received
         .iter()
@@ -383,13 +385,16 @@ async fn a_fault_makes_an_event_and_a_complete_snapshot() {
         .iter()
         .position(|c| *c == DbCommand::Detector(Write::SnapshotComplete))
         .unwrap();
-    assert!(d.commands[complete..]
-        .iter()
-        .any(|c| matches!(c, DbCommand::SizeGuard { .. })));
+    assert!(
+        d.commands[complete..]
+            .iter()
+            .any(|c| matches!(c, DbCommand::SizeGuard { .. }))
+    );
     // The MCU state changes were logged.
-    assert!(d
-        .details(SystemType::StateChange)
-        .contains(&"MCU state CHARGING -> FAULT".to_string()));
+    assert!(
+        d.details(SystemType::StateChange)
+            .contains(&"MCU state CHARGING -> FAULT".to_string())
+    );
 }
 
 #[tokio::test(start_paused = true)]
@@ -405,9 +410,10 @@ async fn a_fault_that_clears_during_a_link_loss_is_closed_on_reconnect() {
     b.run(26, 30).await;
     assert_eq!(b.link_state(), LinkState::Online, "same identity: DD-27");
     let d = b.finish().await;
-    assert!(d
-        .details(SystemType::StateChange)
-        .contains(&"link ONLINE -> OFFLINE".to_string()));
+    assert!(
+        d.details(SystemType::StateChange)
+            .contains(&"link ONLINE -> OFFLINE".to_string())
+    );
     let conn = rusqlite::Connection::open(&d.path).unwrap();
     let detail: String = conn
         .query_row("SELECT detail FROM event WHERE code = 13", [], |r| r.get(0))
@@ -493,10 +499,11 @@ async fn without_a_valid_clock_nothing_is_timestamped() {
         d.commands.is_empty(),
         "DD-11: no record without a valid clock"
     );
-    assert!(d
-        .received
-        .iter()
-        .any(|m| matches!(m, Message::Heartbeat(_))));
+    assert!(
+        d.received
+            .iter()
+            .any(|m| matches!(m, Message::Heartbeat(_)))
+    );
 }
 
 #[tokio::test(start_paused = true)]

@@ -1,10 +1,10 @@
 //! `agg_10min` and `agg_daily` (docs/design/data-lifecycle.md §3–4; S10.3,
 //! S10.4, S10.7; DD-09, DD-10, DD-45 to DD-47).
 
-use super::{Result, Store, KEEP_10MIN_DAYS};
+use super::{KEEP_10MIN_DAYS, Result, Store};
 use crate::aggregate::{AggRow, Stat};
 use crate::signals::SIGNAL_COLUMNS;
-use crate::wallclock::{add_ms, local_date, local_day_bounds, utc_text, DAY_MS};
+use crate::wallclock::{DAY_MS, add_ms, local_date, local_day_bounds, utc_text};
 use jiff::civil::Date;
 use jiff::tz::TimeZone;
 use jiff::{Timestamp, ToSpan};
@@ -340,9 +340,11 @@ mod tests {
             ))
             .unwrap();
 
-        assert!(store
-            .write_daily(date(2026, 1, 15), &tz, Some(10.0))
-            .unwrap());
+        assert!(
+            store
+                .write_daily(date(2026, 1, 15), &tz, Some(10.0))
+                .unwrap()
+        );
         let (start, end, count, min, avg, max, ah_chg, ah_dis, cycles): (
             String,
             String,

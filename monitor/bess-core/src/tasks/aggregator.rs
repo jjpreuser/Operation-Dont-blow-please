@@ -9,14 +9,14 @@
 //! a partial row (D5 §1). Samples without a valid clock are in the ring
 //! buffer only (DD-11, DD-74).
 
-use super::hub::{send_db, Clock, Sampled, TICK};
+use super::hub::{Clock, Sampled, TICK, send_db};
 use crate::aggregate::{AggRow, Aggregator};
 use crate::db::capacity_ah;
 use crate::link::LinkView;
 use crate::wallclock::{add_ms, next_local_midnight};
 use crate::writer::DbCommand;
-use jiff::tz::TimeZone;
 use jiff::Timestamp;
+use jiff::tz::TimeZone;
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, watch};
 

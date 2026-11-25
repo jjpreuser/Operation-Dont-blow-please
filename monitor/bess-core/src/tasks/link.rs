@@ -16,7 +16,7 @@
 //! So a task that gets a frame finds the link watch and the ring buffer at
 //! least as new as that frame.
 
-use super::hub::{now, send_db, Clock, FrameKind, McuFrame, RxFrame, Sampled, SharedRing};
+use super::hub::{Clock, FrameKind, McuFrame, RxFrame, Sampled, SharedRing, now, send_db};
 use crate::db::{NewEvent, SystemType};
 use crate::fan::FanDemand;
 use crate::link::{LinkEvent, LinkState, LinkSupervisor, LinkView, Output};

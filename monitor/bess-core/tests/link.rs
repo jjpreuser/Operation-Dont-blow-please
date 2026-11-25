@@ -5,10 +5,10 @@
 mod common;
 
 use bess_core::link::{
-    LinkEvent, LinkState, LinkSupervisor, Output, CONFIG_REQUEST_PERIOD, DEFAULT_DATA_TIMEOUT,
-    FLAP_WINDOW,
+    CONFIG_REQUEST_PERIOD, DEFAULT_DATA_TIMEOUT, FLAP_WINDOW, LinkEvent, LinkState, LinkSupervisor,
+    Output,
 };
-use common::{config_with, ms, telemetry_frame, BOOT1, BOOT1_REV2, BOOT2};
+use common::{BOOT1, BOOT1_REV2, BOOT2, config_with, ms, telemetry_frame};
 use protocol::config::{Config, FirmwareVersion, Rejection, Violation};
 use protocol::messages::{
     AckStatus, ConfigAck, Heartbeat, Identity, Message, ResetAck, ResetResult,
@@ -463,9 +463,11 @@ fn firmware_change_spans_a_pi_restart_when_seeded() {
     let mut link = LinkSupervisor::new(t0).with_last_firmware(None);
     link.on_message(t0, &telemetry(BOOT1));
     let out = link.on_message(t0 + ms(100), &valid_config(BOOT1));
-    assert!(!events(&out)
-        .iter()
-        .any(|e| matches!(e, LinkEvent::FirmwareChange { .. })));
+    assert!(
+        !events(&out)
+            .iter()
+            .any(|e| matches!(e, LinkEvent::FirmwareChange { .. }))
+    );
 }
 
 #[test]
@@ -498,9 +500,11 @@ fn same_firmware_after_restart_is_not_a_firmware_change() {
     let (mut link, last) = online();
     link.on_message(last + ms(1000), &telemetry(BOOT2));
     let out = link.on_message(last + ms(1100), &valid_config(BOOT2));
-    assert!(!events(&out)
-        .iter()
-        .any(|e| matches!(e, LinkEvent::FirmwareChange { .. })));
+    assert!(
+        !events(&out)
+            .iter()
+            .any(|e| matches!(e, LinkEvent::FirmwareChange { .. }))
+    );
 }
 
 // --- CONFIG outside WAIT_CONFIG -------------------------------------------
@@ -518,9 +522,10 @@ fn unsolicited_config_of_another_identity_is_not_answered() {
     // The MCU sends a CONFIG on its own after start-up (§8); after a quick
     // restart it can come before the first TELEMETRY of the new boot.
     let (mut link, last) = online();
-    assert!(link
-        .on_message(last + ms(500), &valid_config(BOOT2))
-        .is_empty());
+    assert!(
+        link.on_message(last + ms(500), &valid_config(BOOT2))
+            .is_empty()
+    );
     assert_eq!(link.state(), LinkState::Online);
     assert_eq!(link.config().map(Config::identity), Some(BOOT1));
 }
@@ -529,9 +534,10 @@ fn unsolicited_config_of_another_identity_is_not_answered() {
 fn config_while_offline_is_not_answered() {
     let (mut link, last) = online();
     link.poll(last + ms(3000));
-    assert!(link
-        .on_message(last + ms(4000), &valid_config(BOOT2))
-        .is_empty());
+    assert!(
+        link.on_message(last + ms(4000), &valid_config(BOOT2))
+            .is_empty()
+    );
     assert_eq!(link.state(), LinkState::Offline);
 }
 

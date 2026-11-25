@@ -15,7 +15,7 @@ mod ui;
 
 use bess_core::tasks::hub;
 use eframe::egui;
-use pipeline::{lock, Preview};
+use pipeline::{Preview, lock};
 use sim::Mode;
 use std::time::Duration;
 

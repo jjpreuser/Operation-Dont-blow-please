@@ -7,14 +7,14 @@ mod common;
 
 use bess_core::db::{EventKind, EventSeverity, Store, SystemType};
 use bess_core::detector::{
-    EventDetector, Frame, SnapshotPart, Write, DETAIL_ACTIVE_AT_RECONNECT,
-    DETAIL_CLEARED_WHILE_DOWN,
+    DETAIL_ACTIVE_AT_RECONNECT, DETAIL_CLEARED_WHILE_DOWN, EventDetector, Frame, SnapshotPart,
+    Write,
 };
 use bess_core::faults;
 use bess_core::link::LinkState;
 use bess_core::ring::{RingBuffer, RingEntry};
 use bess_core::signals::Signals;
-use common::{bits, telemetry_frame, BOOT1, BOOT2};
+use common::{BOOT1, BOOT2, bits, telemetry_frame};
 use jiff::Timestamp;
 use protocol::config::FirmwareVersion;
 use protocol::messages::{FaultBits, FaultCode, Identity, McuState};

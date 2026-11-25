@@ -2,7 +2,7 @@ mod common;
 
 use common::*;
 use protocol::frame::{
-    encode, Direction, EncodeError, MessageId, SequenceCounter, MAX_FRAME_LEN, OVERHEAD,
+    Direction, EncodeError, MAX_FRAME_LEN, MessageId, OVERHEAD, SequenceCounter, encode,
 };
 
 #[test]

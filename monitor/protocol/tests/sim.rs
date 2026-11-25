@@ -3,7 +3,7 @@
 #![cfg(feature = "sim")]
 
 use protocol::frame::Direction;
-use protocol::messages::{Heartbeat, Identity, Message, Telemetry, TELEMETRY_LEN};
+use protocol::messages::{Heartbeat, Identity, Message, TELEMETRY_LEN, Telemetry};
 use protocol::parser::FrameParser;
 use protocol::reference;
 use protocol::sim::SimMcu;

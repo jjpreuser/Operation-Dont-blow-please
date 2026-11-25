@@ -4,10 +4,10 @@
 // Each test file compiles this module separately and uses only part of it.
 #![allow(dead_code)]
 
-use jiff::tz::TimeZone;
 use jiff::Timestamp;
+use jiff::tz::TimeZone;
 use protocol::config::Config;
-use protocol::messages::{FaultBits, FaultCode, Identity, Telemetry, TELEMETRY_LEN};
+use protocol::messages::{FaultBits, FaultCode, Identity, TELEMETRY_LEN, Telemetry};
 use protocol::reference;
 use std::time::Duration;
 

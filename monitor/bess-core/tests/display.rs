@@ -10,13 +10,13 @@
 
 mod common;
 
-use bess_core::colour::{levels, Level, SampleLevels, WarningLevels};
+use bess_core::colour::{Level, SampleLevels, WarningLevels, levels};
 use bess_core::faults::{self, Severity};
 use bess_core::link::{LinkState, LinkSupervisor};
 use bess_core::live::{LiveTracker, Values};
 use bess_core::sample::Sample;
-use bess_core::state::{shown_state, Shown, ShownState};
-use common::{bits, config_with, ms, telemetry_frame, BOOT1, BOOT2};
+use bess_core::state::{Shown, ShownState, shown_state};
+use common::{BOOT1, BOOT2, bits, config_with, ms, telemetry_frame};
 use protocol::config::Config;
 use protocol::messages::{FaultBits, FaultCode, Identity, McuState, Message, Telemetry, Validity};
 use std::time::Instant;

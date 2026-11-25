@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::{hex, CONFIG};
+use common::{CONFIG, hex};
 use protocol::messages::CONFIG_LEN;
 use protocol::reference;
 

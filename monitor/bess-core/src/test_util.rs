@@ -2,8 +2,8 @@
 //! in `tests/` have their own copy in `tests/common`: they cannot see
 //! `#[cfg(test)]` items of the library.
 
-use jiff::tz::TimeZone;
 use jiff::Timestamp;
+use jiff::tz::TimeZone;
 
 pub fn ts(text: &str) -> Timestamp {
     text.parse().expect("valid timestamp")
