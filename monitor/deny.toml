@@ -18,7 +18,7 @@ allow = [
     "Apache-2.0",
     "BSD-2-Clause",
     "BSD-3-Clause",
-    # Added for the egui display (DD-93, proposed 2026-11-23): permissive
+    # Added for the egui display (DD-93): permissive
     # licences of crates in its dependency tree (foldhash, zlib-rs: Zlib;
     # libloading: ISC; unicode-ident, unicode-properties: Unicode-3.0) ...
     "Zlib",
