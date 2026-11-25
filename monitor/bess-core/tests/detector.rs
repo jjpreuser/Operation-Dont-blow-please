@@ -14,7 +14,7 @@ use bess_core::faults;
 use bess_core::link::LinkState;
 use bess_core::ring::{RingBuffer, RingEntry};
 use bess_core::signals::Signals;
-use common::{telemetry_frame, BOOT1, BOOT2};
+use common::{bits, telemetry_frame, BOOT1, BOOT2};
 use jiff::Timestamp;
 use protocol::config::FirmwareVersion;
 use protocol::messages::{FaultBits, FaultCode, Identity, McuState};
@@ -25,15 +25,6 @@ const FW: FirmwareVersion = FirmwareVersion {
     minor: 0,
     patch: 0,
 };
-
-fn bits(codes: &[u8]) -> FaultBits {
-    FaultBits(
-        codes
-            .iter()
-            .map(|&c| FaultCode::new(c).unwrap().mask())
-            .fold(0, |a, m| a | m),
-    )
-}
 
 /// A detector with a ring buffer, fed frames at whole seconds.
 struct Rig {

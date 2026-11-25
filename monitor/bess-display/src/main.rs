@@ -1,7 +1,8 @@
 //! `bess-display`, the touchscreen app (DD-02, DD-87), first preview.
 //!
-//! There is no core service or API yet, so this preview runs a simulated
-//! MCU and the real `bess-core` logic in the app itself (see `pipeline`).
+//! There is no API yet, so this preview runs the real `bess-core` core
+//! (every task, `Core::run`) inside the app, against a demo MCU over the
+//! real UART bytes (see `pipeline` and `sim`).
 //! The window shows the screen at the Touch Display 2 size (720 × 1280,
 //! portrait, DD-89), scaled to fit, with demo controls on the right.
 //!
@@ -12,10 +13,11 @@ mod pipeline;
 mod sim;
 mod ui;
 
+use bess_core::tasks::hub;
 use eframe::egui;
-use pipeline::Pipeline;
-use sim::{Mode, SimMcu};
-use std::time::{Duration, Instant};
+use pipeline::{lock, Preview};
+use sim::Mode;
+use std::time::Duration;
 
 /// Screen scale in the desktop window: 720 × 1280 shown as 450 × 800.
 const PREVIEW_ZOOM: f32 = 0.625;
@@ -23,40 +25,37 @@ const PREVIEW_ZOOM: f32 = 0.625;
 const DEMO_WIDTH: f32 = 520.0;
 
 struct App {
-    sim: SimMcu,
-    pipeline: Pipeline,
-    /// Bytes from the Pi waiting for the MCU.
-    to_mcu: Vec<u8>,
+    /// Runs the core and the demo MCU; dropped when the window closes.
+    _runtime: tokio::runtime::Runtime,
+    preview: Preview,
     demo: bool,
 }
 
 impl App {
     fn new(demo: bool) -> App {
-        let now = Instant::now();
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_time()
+            .build()
+            .expect("tokio runtime");
+        let preview = {
+            let _entered = runtime.enter();
+            pipeline::start()
+        };
         App {
-            sim: SimMcu::new(now),
-            pipeline: Pipeline::new(now),
-            to_mcu: Vec::new(),
+            _runtime: runtime,
+            preview,
             demo,
         }
     }
 
-    fn step(&mut self) {
-        let now = Instant::now();
-        let pending = std::mem::take(&mut self.to_mcu);
-        if !self.sim.controls.link_cut {
-            self.sim.receive(&pending, now);
-        }
-        let from_mcu = self.sim.step(now);
-        self.to_mcu = self.pipeline.step(now, &from_mcu);
-    }
-
-    fn demo_panel(&mut self, ui: &mut egui::Ui) {
-        let now = Instant::now();
+    fn demo_panel(&self, ui: &mut egui::Ui) {
+        let now = hub::now();
         ui.heading("Demo controls");
-        ui.label("Simulated MCU, not part of the Pi app. The Pi side runs the real bess-core code on the real UART bytes.");
+        ui.label("Simulated MCU, not part of the Pi app. The Pi side runs the real bess-core tasks on the real UART bytes.");
         ui.separator();
-        let c = &mut self.sim.controls;
+        let mut mcu = lock(&self.preview.mcu);
+        let c = &mut mcu.controls;
         ui.horizontal(|ui| {
             ui.radio_value(&mut c.mode, Mode::Idle, "Idle");
             ui.radio_value(&mut c.mode, Mode::Charging, "Charging");
@@ -84,32 +83,32 @@ impl App {
         ui.checkbox(&mut c.unknown_fault, "Unknown fault bit (E24)");
         ui.checkbox(&mut c.link_cut, "Cut the UART link");
         if ui.button("Restart MCU (new boot_counter)").clicked() {
-            self.sim.restart(now);
+            mcu.restart(now);
         }
         ui.separator();
-        let identity = self.sim.identity();
+        let identity = mcu.identity();
         ui.label(format!(
             "MCU boot {} revision {}, SoC {:.1} %",
             identity.boot_counter,
             identity.config_revision,
-            self.sim.soc_pct()
+            mcu.soc_pct()
         ));
-        match self.sim.pi_heartbeat(now) {
+        match mcu.pi_heartbeat(now) {
             Some(h) if h == identity => {
                 ui.label("MCU hears an identity-matched heartbeat: charging allowed.")
             }
             Some(_) => ui.label("MCU hears a heartbeat for another identity."),
             None => ui.label("MCU hears no accepted heartbeat (identity 0): charging inhibited."),
         };
-        let stats = self.pipeline.stats();
+        drop(mcu);
+        let link = self.preview.link.borrow().clone();
         ui.label(format!(
-            "Pi parser: {} frames, {} errors",
-            stats.frames,
-            stats.errors()
+            "Pi link: {}, {} outages since start",
+            link.state, link.outages
         ));
         ui.separator();
         ui.label("Core events (newest first)");
-        for (at, text) in &self.pipeline.events {
+        for (at, text) in lock(&self.preview.events).iter() {
             ui.label(
                 egui::RichText::new(format!("{at:6.1} s  {text}"))
                     .monospace()
@@ -121,8 +120,7 @@ impl App {
 
 impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        self.step();
-        let view = self.pipeline.view();
+        let view = self.preview.live.borrow().clone();
         if self.demo {
             egui::Panel::right("demo")
                 .resizable(false)

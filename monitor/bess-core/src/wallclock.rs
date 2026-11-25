@@ -104,15 +104,8 @@ pub fn add_ms(ts: Timestamp, ms: i64) -> Timestamp {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::test_util::{amsterdam, ts};
     use jiff::civil::date;
-
-    fn amsterdam() -> TimeZone {
-        TimeZone::get("Europe/Amsterdam").expect("tz database has Europe/Amsterdam")
-    }
-
-    fn ts(text: &str) -> Timestamp {
-        text.parse().expect("valid timestamp")
-    }
 
     #[test]
     fn utc_text_has_the_fixed_dd06_format() {

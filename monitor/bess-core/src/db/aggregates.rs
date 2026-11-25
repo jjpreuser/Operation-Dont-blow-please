@@ -43,10 +43,9 @@ fn insert_10min_sql() -> &'static str {
             let _ = write!(update, ",\n  {c} = {c} + excluded.{c}");
         }
         let n = 2 + 3 * SIGNAL_COLUMNS.len() + 4;
-        let placeholders: Vec<String> = (1..=n).map(|i| format!("?{i}")).collect();
         format!(
             "INSERT INTO agg_10min ({columns}) VALUES ({})\nON CONFLICT (ts) DO UPDATE SET\n  {update}",
-            placeholders.join(", ")
+            super::placeholders(n)
         )
     })
 }
@@ -186,8 +185,8 @@ impl Store {
 mod tests {
     use super::*;
     use crate::aggregate::Aggregator;
-    use crate::db::test_util::{amsterdam, close, ts};
     use crate::signals::Signals;
+    use crate::test_util::{amsterdam, close, ts};
     use jiff::civil::date;
     use std::time::Duration;
 

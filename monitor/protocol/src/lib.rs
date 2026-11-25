@@ -12,3 +12,6 @@ pub mod crc;
 pub mod frame;
 pub mod messages;
 pub mod parser;
+pub mod reference;
+#[cfg(feature = "sim")]
+pub mod sim;

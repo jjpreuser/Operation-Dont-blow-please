@@ -134,12 +134,9 @@ mod tests {
     use super::*;
     use crate::ring::RingEntry;
     use crate::signals::Signals;
+    use crate::test_util::ts;
     use protocol::messages::McuState;
     use std::time::{Duration, Instant};
-
-    fn ts(text: &str) -> Timestamp {
-        text.parse().unwrap()
-    }
 
     fn sample(utc: Option<Timestamp>) -> Sampled {
         Sampled {

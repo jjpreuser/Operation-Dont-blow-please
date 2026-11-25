@@ -6,5 +6,9 @@ edition.workspace = true
 license.workspace = true
 publish.workspace = true
 
+[features]
+# The MCU end of the link, for the display preview and the bess-core tests.
+sim = []
+
 [lints]
 workspace = true

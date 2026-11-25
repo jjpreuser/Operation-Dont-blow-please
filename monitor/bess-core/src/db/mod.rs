@@ -41,6 +41,14 @@ pub const KEEP_10MIN_DAYS: i64 = 30;
 /// and the writer ever contend, briefly.
 const BUSY_TIMEOUT: Duration = Duration::from_secs(5);
 
+/// `?1, ?2, …, ?n`: the parameters of an INSERT over `n` columns.
+fn placeholders(n: usize) -> String {
+    (1..=n)
+        .map(|i| format!("?{i}"))
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
 /// What can go wrong with the database.
 #[derive(Debug)]
 pub enum StoreError {
@@ -293,25 +301,6 @@ fn migrate(conn: &mut Connection) -> Result<()> {
         tx.commit()?;
     }
     Ok(())
-}
-
-/// Helpers shared by the tests of the db submodules.
-#[cfg(test)]
-pub(crate) mod test_util {
-    use jiff::tz::TimeZone;
-    use jiff::Timestamp;
-
-    pub fn ts(text: &str) -> Timestamp {
-        text.parse().expect("valid timestamp")
-    }
-
-    pub fn amsterdam() -> TimeZone {
-        TimeZone::get("Europe/Amsterdam").expect("tz database has Europe/Amsterdam")
-    }
-
-    pub fn close(a: f64, b: f64) -> bool {
-        (a - b).abs() < 1e-9
-    }
 }
 
 #[cfg(test)]

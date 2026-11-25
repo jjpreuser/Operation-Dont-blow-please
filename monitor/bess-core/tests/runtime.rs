@@ -15,13 +15,10 @@ use bess_core::runtime::{self, link_pair, startup_events, Core, Summary};
 use bess_core::tasks::hub::Clock;
 use bess_core::wallclock::add_ms;
 use bess_core::writer::{self, DbCommand, WriterSettings, DEFAULT_SOFT_LIMIT_BYTES};
-use common::{config_with, telemetry_frame, BOOT1};
-use jiff::tz::TimeZone;
-use jiff::Timestamp;
-use protocol::config::Config;
-use protocol::frame::{Direction, SequenceCounter};
-use protocol::messages::{AckStatus, FaultBits, FaultCode, Identity, McuState, Message, Validity};
-use protocol::parser::FrameParser;
+use common::{amsterdam, bits, telemetry_frame, ts, BOOT1};
+use protocol::messages::{AckStatus, FaultBits, McuState, Message, Validity};
+use protocol::reference;
+use protocol::sim::SimMcu;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -30,29 +27,10 @@ use tokio::sync::{mpsc, oneshot, watch};
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
 
-fn amsterdam() -> TimeZone {
-    TimeZone::get("Europe/Amsterdam").unwrap()
-}
-
-fn ts(text: &str) -> Timestamp {
-    text.parse().unwrap()
-}
-
-fn bits(codes: &[u8]) -> FaultBits {
-    FaultBits(
-        codes
-            .iter()
-            .map(|&c| FaultCode::new(c).unwrap().mask())
-            .fold(0, |a, m| a | m),
-    )
-}
-
-/// A simulated MCU: TELEMETRY on demand, CONFIG on request.
+/// The MCU end ([`SimMcu`]) with a steady battery: TELEMETRY on demand,
+/// CONFIG on request.
 struct Mcu {
-    sequence: SequenceCounter,
-    parser: FrameParser,
-    identity: Identity,
-    config: Config,
+    sim: SimMcu,
     state: McuState,
     faults: FaultBits,
 }
@@ -60,17 +38,14 @@ struct Mcu {
 impl Mcu {
     fn new() -> Mcu {
         Mcu {
-            sequence: SequenceCounter::new(0),
-            parser: FrameParser::new(Direction::PiToMcu),
-            identity: BOOT1,
-            config: config_with(BOOT1, |_| {}),
+            sim: SimMcu::new(reference::config()),
             state: McuState::Charging,
             faults: FaultBits(0),
         }
     }
 
     fn telemetry(&mut self) -> Vec<u8> {
-        let mut t = telemetry_frame(self.identity);
+        let mut t = telemetry_frame(self.sim.identity());
         t.state = self.state;
         t.reported_faults = self.faults;
         t.cell_mv = [3300; 4];
@@ -79,19 +54,7 @@ impl Mcu {
         t.temperature_deci_c = [250, 260, 240, 0];
         t.soc_centi_pct = 5000;
         t.validity = Validity(Validity::DEFINED & !(1 << 9)); // no NTC4
-        Message::Telemetry(t).encode(self.sequence.next_sequence())
-    }
-
-    fn config(&mut self) -> Vec<u8> {
-        Message::Config(Box::new(self.config.to_bytes())).encode(self.sequence.next_sequence())
-    }
-
-    fn receive(&mut self, bytes: &[u8]) -> Vec<Message> {
-        self.parser
-            .push(bytes)
-            .iter()
-            .filter_map(|f| Message::try_from(f).ok())
-            .collect()
+        self.sim.telemetry(t)
     }
 }
 
@@ -155,12 +118,10 @@ impl Bench {
                 (mcu.clone(), received.clone(), end.from_mcu.downgrade());
             tokio::spawn(async move {
                 while let Some(bytes) = end.to_mcu.recv().await {
-                    let messages = mcu.lock().unwrap().receive(&bytes);
-                    let requested = messages.iter().any(|m| matches!(m, Message::ConfigRequest));
-                    received.lock().unwrap().extend(messages);
-                    if let (true, Some(to_core)) = (requested, to_core.upgrade()) {
-                        let config = mcu.lock().unwrap().config();
-                        let _ = to_core.send(config).await;
+                    let heard = mcu.lock().unwrap().sim.receive(&bytes);
+                    received.lock().unwrap().extend(heard.messages);
+                    if let (false, Some(to_core)) = (heard.reply.is_empty(), to_core.upgrade()) {
+                        let _ = to_core.send(heard.reply).await;
                     }
                 }
             });
@@ -466,14 +427,7 @@ async fn a_fault_that_clears_during_a_link_loss_is_closed_on_reconnect() {
 async fn an_mcu_restart_waits_for_the_new_config() {
     let b = Bench::start("2026-11-24T10:00:00Z", true);
     b.run(0, 5).await;
-    {
-        let mut mcu = b.mcu();
-        mcu.identity = Identity {
-            boot_counter: 2,
-            config_revision: 1,
-        };
-        mcu.config = config_with(mcu.identity, |_| {});
-    }
+    b.mcu().sim.restart(); // boot 1 -> 2, CONFIG only on request
     b.run(6, 8).await;
     assert_eq!(b.link_state(), LinkState::Online);
     let d = b.finish().await;

@@ -1,8 +1,6 @@
-//! A simulated MCU for the preview: it speaks the real UART protocol (bytes
-//! with CRC, via the `protocol` crate), so the Pi side runs exactly the code
-//! it will run against the STM32. It is not a model of the BMS firmware:
-//! the protection logic here is a rough stand-in so the screen can show each
-//! state.
+//! The demo MCU for the preview: [`protocol::sim::SimMcu`] (the MCU end of
+//! the real UART protocol) with a rough battery on top, so the screen can
+//! show each state. It is not a model of the BMS firmware.
 //!
 //! - TELEMETRY every 1 s; a `FAULT_UPDATE` at once when the fault set changes.
 //! - One CONFIG after start-up and one on every `CONFIG_REQUEST` (§8).
@@ -12,27 +10,13 @@
 //!   "Cell imbalance", E24 with "Unknown fault bit".
 //! - `SoC` moves 60 times faster than real, so charging is visible.
 
-use protocol::config::Config;
-use protocol::frame::{Direction, SequenceCounter};
+use bess_core::db::capacity_ah;
 use protocol::messages::{
-    FaultBits, FaultCode, Heartbeat, Identity, McuState, Message, Telemetry, Validity, CONFIG_LEN,
-    TELEMETRY_LEN,
+    FaultBits, FaultCode, Identity, McuState, Message, Telemetry, Validity, TELEMETRY_LEN,
 };
-use protocol::parser::FrameParser;
+use protocol::reference;
+use protocol::sim::SimMcu;
 use std::time::{Duration, Instant};
-
-/// UART draft §6–7 example CONFIG (the same bytes as the protocol crate's
-/// reference frame, without the envelope).
-const REFERENCE_CONFIG: &str = "
-    01 00 01 00 00 00 01 00 00 00 00 00 00 01 04 03 07 00
-    80 25 00 00 00 00 10 0E 7A 0D 8C 0A 54 0B 28 23 00 00 64 19 00 00 7C 15
-    00 00 7C 15 00 00 32 00 64 00 F4 01 C2 01 9C FF CE FF 26 02 F4 01 BC 02
-    96 00 C2 01 90 01 E8 03 E8 03 88 13 10 27 D0 07 34 21 2C 01 0E 01 5E 01
-    40 01 1E 46 88 13 FF FF E8 03 E8 03 88 13 B8 0B 04 04 00 00 0E 01 00 00
-    00 2C 01 1E 00 00 90 01 41 00 00 C2 01 64 00 00 00 00 00 00 00 00 00 00
-    00 00 00 00 00 00 00 00 00 00 00 00 40 01 00 00 00 5E 01 1E 00 00 90 01
-    41 00 00 C2 01 64 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-    00 00 00 00";
 
 const TELEMETRY_PERIOD: Duration = Duration::from_secs(1);
 /// `SoC` runs this much faster than real time.
@@ -81,70 +65,55 @@ impl Default for Controls {
     }
 }
 
-fn code(n: u8) -> u32 {
-    FaultCode::new(n).map_or(0, FaultCode::mask)
-}
-
-/// The simulated MCU.
-pub struct SimMcu {
+/// The demo MCU.
+pub struct DemoMcu {
     pub controls: Controls,
-    config: Config,
-    boot_counter: u32,
-    sequence: SequenceCounter,
-    rx: FrameParser,
+    mcu: SimMcu,
     next_telemetry: Instant,
     last_step: Instant,
     soc_pct: f64,
     e05: bool,
     e17: bool,
-    last_faults: u32,
-    /// Identity of the latest heartbeat from the Pi.
-    accepted: Option<Identity>,
+    last_faults: FaultBits,
     last_heartbeat: Option<Instant>,
     /// Bytes to send to the Pi.
     outbox: Vec<u8>,
 }
 
-impl SimMcu {
+impl DemoMcu {
+    /// Boot 1 with the UART draft's reference CONFIG.
     #[must_use]
-    pub fn new(now: Instant) -> SimMcu {
-        let bytes: Vec<u8> = REFERENCE_CONFIG
-            .split_whitespace()
-            .filter_map(|b| u8::from_str_radix(b, 16).ok())
-            .collect();
-        let raw: [u8; CONFIG_LEN] = bytes.try_into().unwrap_or([0; CONFIG_LEN]);
-        let mut sim = SimMcu {
+    pub fn new(now: Instant) -> DemoMcu {
+        let mut demo = DemoMcu {
             controls: Controls::default(),
-            config: Config::from_bytes(&raw),
-            boot_counter: 0,
-            sequence: SequenceCounter::new(0),
-            rx: FrameParser::new(Direction::PiToMcu),
+            mcu: SimMcu::new(reference::config()),
             next_telemetry: now,
             last_step: now,
             soc_pct: 42.0,
             e05: false,
             e17: false,
-            last_faults: 0,
-            accepted: None,
+            last_faults: FaultBits(0),
             last_heartbeat: None,
             outbox: Vec::new(),
         };
-        sim.restart(now);
-        sim
+        demo.boot(now);
+        demo
     }
 
     /// An MCU reset: new boot counter, CONFIG sent once on its own (§8).
     pub fn restart(&mut self, now: Instant) {
-        self.boot_counter += 1;
-        self.config.boot_counter = self.boot_counter;
-        self.accepted = None;
+        self.mcu.restart();
+        self.boot(now);
+    }
+
+    fn boot(&mut self, now: Instant) {
         self.next_telemetry = now + Duration::from_millis(300);
-        self.send_config();
+        self.send(SimMcu::config_frame);
     }
 
     #[must_use]
     pub fn identity(&self) -> Identity {
-        self.config.identity()
+        self.mcu.identity()
     }
 
     /// The identity the Pi reports in its heartbeat, if it is recent.
@@ -152,7 +121,7 @@ impl SimMcu {
     pub fn pi_heartbeat(&self, now: Instant) -> Option<Identity> {
         self.last_heartbeat
             .filter(|t| now.saturating_duration_since(*t) <= Duration::from_secs(5))
-            .and(self.accepted)
+            .and(self.mcu.accepted())
     }
 
     #[must_use]
@@ -160,33 +129,29 @@ impl SimMcu {
         self.soc_pct
     }
 
-    fn send(&mut self, message: &Message) {
+    /// Queues a frame for the Pi, unless the link is cut (then nothing is
+    /// sent and no sequence number is used).
+    fn send(&mut self, frame: impl FnOnce(&mut SimMcu) -> Vec<u8>) {
         if !self.controls.link_cut {
-            let frame = message.encode(self.sequence.next_sequence());
-            self.outbox.extend(frame);
+            let bytes = frame(&mut self.mcu);
+            self.outbox.extend(bytes);
         }
     }
 
-    fn send_config(&mut self) {
-        let message = Message::Config(Box::new(self.config.to_bytes()));
-        self.send(&message);
-    }
-
-    /// Bytes from the Pi.
+    /// Bytes from the Pi; a cut link hears nothing.
     pub fn receive(&mut self, bytes: &[u8], now: Instant) {
-        for frame in self.rx.push(bytes) {
-            match Message::try_from(&frame) {
-                Ok(Message::ConfigRequest) => self.send_config(),
-                Ok(Message::Heartbeat(h)) => {
-                    self.last_heartbeat = Some(now);
-                    self.accepted = (h != Heartbeat::WAITING).then_some(Identity {
-                        boot_counter: h.accepted_boot_counter,
-                        config_revision: h.accepted_config_revision,
-                    });
-                }
-                _ => {}
-            }
+        if self.controls.link_cut {
+            return;
         }
+        let heard = self.mcu.receive(bytes);
+        if heard
+            .messages
+            .iter()
+            .any(|m| matches!(m, Message::Heartbeat(_)))
+        {
+            self.last_heartbeat = Some(now);
+        }
+        self.outbox.extend(heard.reply);
     }
 
     /// Advances the simulation and returns the bytes for the Pi.
@@ -206,7 +171,7 @@ impl SimMcu {
         } else {
             c.air_temp_c > 45.0
         };
-        let faults = [
+        let faults: FaultBits = [
             (self.e05, 5),
             (c.e_stop, 8),
             (c.ntc1_fault, 9),
@@ -214,10 +179,10 @@ impl SimMcu {
             (self.e17, 17),
             (c.unknown_fault, 24),
         ]
-        .iter()
-        .filter(|(on, _)| *on)
-        .map(|&(_, n)| code(n))
-        .sum::<u32>();
+        .into_iter()
+        .filter(|&(on, _)| on)
+        .filter_map(|(_, n)| FaultCode::new(n))
+        .collect();
         let state = if c.e_stop {
             McuState::EStop
         } else if self.e05 || c.ntc1_fault {
@@ -235,8 +200,8 @@ impl SimMcu {
             McuState::Discharging => -c.current_a,
             _ => 0.0,
         };
-        let capacity_ah = f64::from(self.config.capacity_mah) / 1000.0;
-        self.soc_pct = (self.soc_pct + current * dt * SOC_SPEED_UP / 3600.0 / capacity_ah * 100.0)
+        let capacity = capacity_ah(self.mcu.config());
+        self.soc_pct = (self.soc_pct + current * dt * SOC_SPEED_UP / 3600.0 / capacity * 100.0)
             .clamp(0.0, 100.0);
 
         let fault_changed = faults != self.last_faults;
@@ -244,9 +209,9 @@ impl SimMcu {
             let telemetry = self.telemetry(state, faults, current);
             if now >= self.next_telemetry {
                 self.next_telemetry = now + TELEMETRY_PERIOD;
-                self.send(&Message::Telemetry(telemetry));
+                self.send(|mcu| mcu.telemetry(telemetry));
             } else {
-                self.send(&Message::FaultUpdate(telemetry));
+                self.send(|mcu| mcu.fault_update(telemetry));
             }
             self.last_faults = faults;
         }
@@ -258,7 +223,7 @@ impl SimMcu {
         clippy::cast_sign_loss,
         reason = "values are clamped to the field range first"
     )]
-    fn telemetry(&self, state: McuState, faults: u32, current_a: f64) -> Telemetry {
+    fn telemetry(&self, state: McuState, faults: FaultBits, current_a: f64) -> Telemetry {
         let c = self.controls;
         // LFP-like: flat around 3.3 V, plus a little IR drop.
         let base = 3.0 + 0.004 * self.soc_pct + 0.01 * current_a;
@@ -284,10 +249,8 @@ impl SimMcu {
             0,
         ];
         t.state = state;
-        t.reported_faults = FaultBits(faults);
+        t.reported_faults = faults;
         t.validity = Validity(validity);
-        t.boot_counter = self.boot_counter;
-        t.config_revision = self.config.config_revision;
         t.soc_centi_pct = (self.soc_pct * 100.0).round().clamp(0.0, 10_000.0) as u16;
         t
     }
