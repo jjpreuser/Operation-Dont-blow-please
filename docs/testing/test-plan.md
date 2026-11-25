@@ -233,7 +233,7 @@ Status 2026-11-25: the tests written so far, all in `monitor/` and run by CI ([m
 | S10.6 | L1 | `bess-core/tests/detector.rs`, `src/db/snapshots.rs` | ±60 s snapshot; overlap extends it; short before-part just after start-up | L3 |
 | S10.7 | L1 (part) | `bess-core/src/db/aggregates.rs` | 10-min rows kept at least 30 days | L3 run with an advanced clock |
 | S10.8 | L1 (part) | `bess-core/src/db/maintenance.rs` | Size guard removes the oldest snapshots first | L3 fill with 4 years of data |
-| S10.10 | L1 | `bess-core/src/wallclock.rs`, `tests/runtime.rs` | UTC ISO text format, local time, nothing timestamped without a valid clock | L3 (shown in local time) |
+| S10.10 | L1 | `bess-core/src/wallclock.rs`, `tests/runtime.rs` | UTC ISO text format, local time, nothing timestamped without a valid clock | `clock_manager` (chrony, RTC, DD-79) and the queue for events from before the clock is valid (DD-31), not written yet; then L3 (shown in local time) |
 | S10.17 | L1 | `bess-core/tests/runtime.rs` | `clean`, `crash` and `power loss` told apart at start-up | L3, L5 (resume within 60 s) |
 
 No code yet, so no tests: S6.6 (E12), S8.13, S9 (dashboard), S10.9 (SoH), S10.11 to S10.16 (CSV, download, backups, upload, clock) and the display screens of S8.1 to S8.7.
