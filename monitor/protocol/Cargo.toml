@@ -4,6 +4,11 @@ description = "MCU <-> Pi UART protocol V2 (version 0x03): frames, CRC-16, messa
 version.workspace = true
 edition.workspace = true
 license.workspace = true
+publish.workspace = true
+
+[features]
+# The MCU end of the link, for the display preview and the bess-core tests.
+sim = []
 
 [lints]
 workspace = true

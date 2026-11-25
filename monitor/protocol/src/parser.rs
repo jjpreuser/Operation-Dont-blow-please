@@ -12,7 +12,7 @@
 
 use crate::crc::crc16;
 use crate::frame::{
-    Direction, Frame, MessageId, HEADER, MAX_FRAME_LEN, OVERHEAD, PREFIX_LEN, PROTOCOL_VERSION,
+    Direction, Frame, HEADER, MAX_FRAME_LEN, MessageId, OVERHEAD, PREFIX_LEN, PROTOCOL_VERSION,
 };
 use std::fmt;
 
@@ -36,6 +36,7 @@ pub struct ParserStats {
 
 impl ParserStats {
     /// Every rejected candidate frame, of any kind.
+    #[must_use]
     pub fn errors(&self) -> u64 {
         self.version_errors + self.unknown_id + self.length_errors + self.crc_errors
     }
@@ -51,6 +52,7 @@ pub struct FrameParser {
 impl FrameParser {
     /// A parser for frames travelling in `accept` direction: the Pi uses
     /// `Direction::McuToPi`, an MCU simulator `Direction::PiToMcu`.
+    #[must_use]
     pub fn new(accept: Direction) -> FrameParser {
         FrameParser {
             accept,
@@ -60,11 +62,13 @@ impl FrameParser {
         }
     }
 
+    #[must_use]
     pub fn stats(&self) -> ParserStats {
         self.stats
     }
 
     /// Bytes waiting for the rest of a frame.
+    #[must_use]
     pub fn buffered(&self) -> usize {
         self.len
     }

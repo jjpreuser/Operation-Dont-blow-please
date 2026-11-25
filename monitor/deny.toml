@@ -1,0 +1,46 @@
+# cargo-deny configuration for the Pi monitor workspace, run in CI (.github/workflows/monitor-ci.yml).
+# Docs: https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+all-features = true
+
+# RustSec advisory database: known vulnerabilities, unmaintained and yanked crates.
+[advisories]
+yanked = "deny"
+
+# DD-19: only free, open-source software with a permissive licence.
+# Adding a licence to this list is a DD-19 decision: record it in
+# docs/design/decisions.md first. (The MCU UART uses our own termios code
+# through rustix, DD-98, so serialport and its MPL-2.0 licence are not needed.)
+[licenses]
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    # Added for the egui display (DD-93): permissive
+    # licences of crates in its dependency tree (foldhash, zlib-rs: Zlib;
+    # libloading: ISC; unicode-ident, unicode-properties: Unicode-3.0) ...
+    "Zlib",
+    "ISC",
+    "Unicode-3.0",
+    # ... and the font licences of egui's built-in fonts (epaint_default_fonts).
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+]
+confidence-threshold = 0.93
+
+# Our own crates are not published (publish = false), so their licence is not checked.
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Path dependencies between our own (unpublished) crates are fine.
+allow-wildcard-paths = true
+
+# Crates only from crates.io, no git or other registries.
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

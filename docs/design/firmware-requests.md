@@ -11,7 +11,7 @@ No energy counters are needed from the MCU: the Pi integrates Ah and Wh per 10 m
 | § | Point | What we ask | Priority |
 |---|---|---|---|
 | 4 | Reference TELEMETRY frame has validity bits 5 and 9 swapped | Fix the frame and its generator | High |
-| 6 | CONFIG validation must be the same list on both sides | Confirm our reading of two §7 rules, or send yours | High |
+| 6 | CONFIG validation must be the same list on both sides | Confirm our reading of the §7 rules (two unclear ones, the rest since 2026-11-20) and say whether the MCU checks four rules from the description text, or send your list | High |
 | 5 | A lost FAULT_UPDATE can hide a short fault | Confirm how `sequence` counts; optional `faults_seen` field | Medium |
 | 1 | SoH needs the BMS charge-stop voltage | Value, fixed or compensated; send it in CONFIG | Medium |
 | 3 | Pi answers to points V2 leaves open | Confirm, incl. production `fan_offline_action` = 2 and `state` 5 | Medium |
@@ -81,3 +81,27 @@ If the Pi rejects a CONFIG that the MCU accepted (CONFIG_ACK status 2), the Pi s
 | Table endpoints consistent | Per table: first active point at or below the off point with 0 %; last active point 100 %; every active point at or above the on point at least `fan_min_pct` |
 
 The example CONFIG of §10 passes both. Please confirm, or send your exact list. Proposal: the list lives in the `/protocol` spec (S5) as the single source that both the C and the Rust tests check, like the error table (S4.1).
+
+Added 2026-11-20, from writing the Pi check (`monitor/protocol/src/config.rs`). The Pi also had to choose how to read the other §7 items. Please confirm these too:
+
+| §7 item | Pi reading |
+|---|---|
+| Order of the checks | Schema first (status 1, nothing else checked), then identity against the latest valid TELEMETRY (status 3), then content (status 2). This follows the §8 order "CRC, structural and application checks". |
+| Reserved bits/bytes zero | `config_flags` bits 2–15, `ntc_present_mask` bits 4–7, byte 109, and every byte of the table slots after `count` |
+| `ntc_mask` includes NTC1–3 | Bits 0–2 set; bit 3 (NTC4) may be either |
+| Count 2–8 | Checked per table. A table with a bad count gets only that error; its points are not checked. |
+| Strictly increasing temperatures; duty 0–100 and nondecreasing | Active points only. Equal neighbouring duties are allowed. |
+| All periods nonzero | All ten `_ms` fields: `voltage_detect`, `temp_detect`, `recover`, `overload`, `fan_fault`, `fan_offline` (65535 counts as nonzero), `telemetry`, `heartbeat`, `mcu_pi_timeout`, `pi_data_timeout` |
+| Temperature wire bounds −300..1100 | Every fixed temperature field and every active table point. Not `terminal_delta_dC`, which is a difference, not a temperature. |
+| Capacity within approved battery range; current/profile limits meet ratings | Not checked by the Pi (only capacity > 0): the draft gives no numbers. Leaving them out never rejects a CONFIG the MCU accepts. |
+
+Four rules appear only in the §6–7 description text, not in the validation list. Under DD-67 the Pi does **not** reject on them (Jelle, 2026-11-20). It keeps the value and handles it safely:
+
+| Rule in the description text | What the Pi does instead |
+|---|---|
+| `current_profile` is 0 or 1 | Another value is shown as unknown; the Pi uses the profile only for display |
+| `fan_offline_action` is 0, 1 or 2 | Another value is treated like 0 (undecided): fans 100 % while OFFLINE |
+| A calibration flag is set only when every active nonzero-duty point has a nonzero RPM | E12 stays disabled for that table, and the screen shows "calibration unavailable" |
+| With the flag clear, the RPM fields are 0 | The RPMs are ignored |
+
+Does the MCU reject a CONFIG for any of these four? If yes, they belong in the shared list and the Pi will add them.

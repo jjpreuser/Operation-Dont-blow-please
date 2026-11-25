@@ -1,10 +1,12 @@
 name: monitor CI
 
-# L0 static checks + L1 unit tests for the Pi monitor app (S1.9, S1.12)
+# L0 static checks + L1 unit tests for the Pi monitor app (S1.9, S1.12).
+# Runs on every push and on pull requests into development and main.
 on:
   push:
     paths: ["monitor/**", ".github/workflows/monitor-ci.yml"]
   pull_request:
+    branches: [development, main]
     paths: ["monitor/**", ".github/workflows/monitor-ci.yml"]
   workflow_dispatch:
 
@@ -17,7 +19,7 @@ env:
 
 jobs:
   check:
-    name: fmt, clippy, test
+    name: fmt, clippy, doc, test, deny
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,7 +31,19 @@ jobs:
           workspaces: monitor
       - name: L0 – cargo fmt --check
         run: cargo fmt --all --check
-      - name: L0 – cargo clippy (zero warnings)
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      # Lint levels (clippy::all + clippy::pedantic, deny) live in monitor/Cargo.toml
+      - name: L0 – cargo clippy (zero warnings, pedantic)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - name: L0 – cargo doc (no broken doc links or doc warnings)
+        run: cargo doc --workspace --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -D warnings
       - name: L1 – cargo test
-        run: cargo test --workspace
+        run: cargo test --workspace --locked
+      # Licences (DD-19: free, open-source, permissive), RustSec advisories,
+      # crate sources; config in monitor/deny.toml
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+      - name: L0 – cargo deny check
+        run: cargo deny --locked check

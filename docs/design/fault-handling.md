@@ -1,6 +1,6 @@
 # D6 – Fault and event handling
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); **in review since 2026-10-29** for the decisions proposed that day: DD-66 and DD-68 from the D7 review (lost frames, unknown codes), DD-69 with the error code list (Table A) added to section 1 (faults shown and logged in WAIT_CONFIG), DD-82 and DD-83 from the D8 sweep (DD-69, DD-82 and DD-83 agreed 2026-11-02); also from the D8 sweep DD-81 (agreed 2026-10-29: yellow levels in the TOML file); DD-76 agreed 2026-10-29 (a fan with E12 is switched off, the other runs at 100 %); open points in section 7. Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-22, DD-34, DD-35, DD-36, DD-38, DD-39); in review from 2026-10-29 for the decisions proposed that day, **agreed again 2026-11-25** when the last of them (DD-66, DD-68, DD-92, DD-97) were agreed: DD-66 and DD-68 from the D7 review (lost frames, unknown codes), DD-69 with the error code list (Table A) added to section 1 (faults shown and logged in WAIT_CONFIG), DD-82 and DD-83 from the D8 sweep (DD-69, DD-82 and DD-83 agreed 2026-11-02); also from the D8 sweep DD-81 (agreed 2026-10-29: yellow levels in the TOML file); DD-76 agreed 2026-10-29 (a fan with E12 is switched off, the other runs at 100 %); open points in section 7. **Code** since 2026-11-24: `monitor/bess-core/src/detector.rs` (raise and clear from the bitmap diff, reconciliation, snapshots, lost frames, MCU state changes) and `db/snapshots.rs` (writing them); E12 (section 6) waits for the fan tests; details settled while writing it are DD-97 (agreed 2026-11-25). Builds on D2 ([database.md](database.md)): DD-07 (two-stage snapshot), DD-20 (one `event` table), DD-21 (snapshot for every FAULT / CRITICAL), DD-22 (trigger + context values), DD-25 (cloud watermark); and D5 ([lifecycle.md](lifecycle.md)): link states, `uart_tx`.
 
 Requirements: S3.6 (explicit reset, rejected while active), S3.7 (LED priority), S4.1 / Table A (codes, one source), S5.8 (faults ≤ 100 ms), S8.10 (active faults, red banner), S8.11 (yellow/red values), S9.9 / S9.10 (fault and event log), S9.12 (PIN), S10.5 (stored ≤ 1 s, never deleted), S10.6 (±60 s snapshot), S11.7 (faults uploaded ≤ 30 s), S11.13–S11.27 (website, email by the cloud, safety never depends on it).
 
@@ -46,14 +46,15 @@ Severity (Table A): **Warning** = logged and shown only. **Protection** = chargi
 | E17 | ENCLOSURE_OVERTEMP | Warning | Air downstream of the battery (NTC3) too hot. Fans 100 %. | WARNING | `t_air_out_c` | Fans 100 % (S6.8) |
 | E18 | CHARGE_OVERTEMP | Protection | Battery temperature too high for charging (> 50 °C). Charging stopped. | FAULT + snapshot | `t_cell_c` | – |
 | E19 | DISCHARGE_UNDERTEMP | Protection | Battery temperature too low for discharging (< −10 °C). Discharging stopped. | FAULT + snapshot | `t_cell_c` | – |
+| E20–E32 | UNKNOWN | Protection (Pi rule, not in Table A) | Fault bit not defined in Table A; firmware and Pi disagree on the error codes. | FAULT + snapshot | – | Bits 19–31, reserved in UART draft V2 §5. Logged as kind FAULT with severity PROTECTION, with a snapshot (DD-68, DD-97); shown as `UNKNOWN` after the known codes, without the red banner (DD-92). Until the S4.1 Table A source has these codes, a set bit means the firmware is newer than the Pi |
 
 - Battery temperature is NTC1 (`t_cell_c`, E3.15), so E05, E06, E18 and E19 log `t_cell_c`.
 - E03, E04 and E07: the AFE cuts the current within milliseconds, so the current at report is usually near 0 A. The log shows it labelled "at report" (DD-22).
-- Bits 19–31 are reserved; a set one is logged as an unknown fault (DD-68).
+- Bits 19–31 are reserved; a set one is an unknown code, handled as in the E20–E32 row (DD-68).
 
 ## 2. Raise and clear
 
-The **complete fault bitmap in each frame is the truth** (DD-34). TELEMETRY and FAULT_UPDATE have the same 38-byte layout, so `event_detector` treats them alike: it processes every frame in arrival order and compares its bitmap with the previous one. A short fault that is raised and cleared between two TELEMETRY frames shows up in two FAULT_UPDATE frames and is logged too. A duplicate or a Pi restart cannot create a double or a missing event. A lost frame can: if the FAULT_UPDATE that raises a short fault is lost, that fault is not logged. The Pi sees lost frames as a jump in the MCU `sequence` and logs `FRAMES_LOST` (DD-66, proposed 2026-10-29). FAULT_UPDATE frames do not go into the 1 Hz sample stream or ring buffer (they do not make old measurements fresh, UART draft §4).
+The **complete fault bitmap in each frame is the truth** (DD-34). TELEMETRY and FAULT_UPDATE have the same 38-byte layout, so `event_detector` treats them alike: it processes every frame in arrival order and compares its bitmap with the previous one. A short fault that is raised and cleared between two TELEMETRY frames shows up in two FAULT_UPDATE frames and is logged too. A duplicate or a Pi restart cannot create a double or a missing event. A lost frame can: if the FAULT_UPDATE that raises a short fault is lost, that fault is not logged. The Pi sees lost frames as a jump in the MCU `sequence` and logs `FRAMES_LOST` (DD-66). FAULT_UPDATE frames do not go into the 1 Hz sample stream or ring buffer (they do not make old measurements fresh, UART draft §4).
 
 ```mermaid
 sequenceDiagram
@@ -126,9 +127,9 @@ In WAIT_CONFIG it does (DD-69): the fault bitmap needs no CONFIG, and a fault th
 
 | What | Rule |
 |---|---|
-| Active fault list | Sorted like the LED (S3.7): highest severity first, then lowest code. Shows code, name, description, severity, local time of occurrence (S8.10). |
+| Active fault list | Sorted like the LED (S3.7): highest severity first, then lowest code; unknown codes E20–E32 last (DD-92). Shows code, name, description, severity, local time of occurrence (S8.10). |
 | Red banner | On every page while any Critical fault is active (S8.10). Stays while OFFLINE (D5 §6). |
-| Value colours | Yellow at the warning level, red at the protection limit (S8.11). Value-based, not from events (DD-81): red at the CONFIG protection limit (S2.4), yellow at the S8.11 level. A value can be red while the MCU has not tripped yet (detection delay). CONFIG V2 has no warning levels, so the S8.11 yellow levels are display settings in the Pi's TOML file (DD-81). |
+| Value colours | Yellow at the warning level, red at the protection limit (S8.11). Value-based, not from events (DD-81): red at the CONFIG protection limit (S2.4), yellow at the S8.11 level. A value can be red while the MCU has not tripped yet (detection delay). CONFIG V2 has no warning levels, so the S8.11 yellow levels are display settings in the Pi's TOML file (DD-81). Which limit colours which value (DD-92): cells `ov_trip` / `uv_trip`; current `chg_oc` / `dis_oc` by direction; NTC1 the charge trips while CHARGING, else the discharge trips; NTC2 `terminal_ot`; NTC3 `air_ot`; NTC4 and SoC yellow only; pack voltage and power not coloured. |
 | Fault log page | `event WHERE kind IN ('FAULT','WARNING')`: time, code, name, severity, trigger value + unit, cleared time; filter by severity and date, sort by column (S9.9). |
 | Event log page | `event WHERE kind = 'SYSTEM'` (S9.10). |
 | Names, descriptions, severities | Only from the generated Table A module (S4.1). The DB stores the code plus `kind` and `severity` for the fault log filters (D2); names and descriptions are looked up when shown, so all screens and the cloud use the same text (DD-82). |
@@ -182,7 +183,7 @@ sequenceDiagram
 | PIN_LOCK | 5 wrong PINs. |
 | SNAPSHOT_DELETED | Size guard removed old snapshots (DD-23). |
 | FRAMES_LOST | Jump in the MCU `sequence` between two valid frames while not OFFLINE; `detail` = number of frames lost; at most 1 per minute (DD-66). |
-| Unknown fault | Fault bit 19–31 set in an MCU frame: kind FAULT, `code` = bit + 1, name `UNKNOWN` (DD-68). |
+| Unknown fault | Fault bit 19–31 set in an MCU frame: kind FAULT, severity PROTECTION, `code` = bit + 1, name `UNKNOWN` (E20–E32 row in section 1; DD-68, DD-97). |
 
 ## 7. Decisions
 
@@ -198,7 +199,7 @@ Agreed 2026-10-27, see [decisions.md](decisions.md):
 | DD-38 | (revised) FAULT_RESET / RESET_ACK per UART draft §8, 2 s, no retry, last `request_id` persisted. |
 | DD-39 | (revised) E12 detected only by the Pi with CONFIG parameters; disabled without RPM calibration. |
 
-Proposed 2026-10-29 (DD-66 and DD-68 from the D7 review, [firmware-requests.md](firmware-requests.md) §3, §5; DD-69 from the error code list, agreed 2026-11-02):
+Proposed 2026-10-29, all agreed since (DD-66 and DD-68 from the D7 review, [firmware-requests.md](firmware-requests.md) §3, §5, agreed 2026-11-25; DD-69 from the error code list, agreed 2026-11-02):
 
 | ID | Decision |
 |---|---|

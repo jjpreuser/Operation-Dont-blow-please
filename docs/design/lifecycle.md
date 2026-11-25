@@ -1,6 +1,6 @@
 # D5 – Pi app lifecycle and comm-loss state machine
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); **in review since 2026-10-29** for the decisions proposed that day: DD-69 (faults shown and logged in WAIT_CONFIG, from the D6 error code list) and DD-77 to DD-80 (D8 sweep: decisions in this document that had no DD; DD-77 revised 2026-11-02 for cage, DD-87); DD-69 and DD-78 to DD-80 agreed 2026-11-02, DD-77 still proposed; open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-16, DD-26, DD-27, DD-28); **in review since 2026-10-29** for the decisions proposed that day: DD-69 (faults shown and logged in WAIT_CONFIG, from the D6 error code list) and DD-77 to DD-80 (D8 sweep: decisions in this document that had no DD; DD-77 revised 2026-11-02 for cage, DD-87); DD-69 and DD-78 to DD-80 agreed 2026-11-02, DD-77 still proposed; DD-90 (details settled while writing the link supervisor, `monitor/bess-core/src/link.rs`, agreed 2026-11-25); open points in section 7. Builds on D1 ([architecture.md](architecture.md)): DD-02 (core + display), DD-11 (no timestamps without a valid clock), DD-13 (RAM buffer not persisted), DD-16 (fans on comm loss), DD-17 (crash policy). **Code** since 2026-11-24: `monitor/bess-core` runs as a program (`main.rs`, `runtime.rs`, the D1 tasks in `tasks/`): start-up as section 1 (migrations, open faults, `STARTUP` + `LOG_GAP`), the link supervisor, heartbeat and CONFIG handshake over the UART, clean shutdown on SIGTERM; details in DD-99 (agreed 2026-11-25), the serial port in DD-98. Still to do: `clock_manager` (section 4; an interim rule stands in), sd_notify, the display connection (section 5, needs `bess-api`).
 
 Requirements: S2.4 (config from the MCU before live values), S3.6 (fault reset from the dashboard), S3.8 (MCU reports E11 when Pi frames stop, 5 s), S5.8 (telemetry 1 s, faults ≤ 100 ms), S7.4 (full-screen within 60 s, no login), S8.9 (states + priority), S8.12 ("BMS communication lost" after 3 s), S9.10 (event log), S10.10/S10.16 (UTC, NTP + RTC), S10.17 (logging resumes ≤ 60 s, gap logged).
 
@@ -104,7 +104,10 @@ stateDiagram-v2
 Rules:
 
 - **Timeout** is 3 s from the last *valid* frame, measured on the monotonic clock (not wall time, so NTP steps cannot trigger it). Frames that fail CRC or length are discarded and counted (`comm_error_total`, S5.9); they do not reset the timer.
-- **Every transition** logs a `SYSTEM` / `STATE_CHANGE` event (`detail` = `ONLINE -> OFFLINE` etc.). Repeated flapping within 10 s is logged once with a count, so a loose connector cannot flood the event log (DD-80).
+- **Every transition** logs a `SYSTEM` / `STATE_CHANGE` event (`detail` = `ONLINE -> OFFLINE` etc.). Repeated flapping within 10 s is logged once with a count, so a loose connector cannot flood the event log (DD-80). The count is kept per kind of change: the first `ONLINE -> OFFLINE` is logged at once, repeats of it within 10 s are counted and logged as one event when the 10 s are over; a different change, such as `WAIT_CONFIG -> ONLINE` right after `OFFLINE -> WAIT_CONFIG` at start-up, is logged at once (DD-90).
+- **Which frames count:** any valid MCU frame restarts the timeout, but only TELEMETRY and FAULT_UPDATE carry the identity, so only they move the link out of OFFLINE (DD-90).
+- **CONFIG outside WAIT_CONFIG** (DD-90): the MCU sends one CONFIG on its own after start-up as well as on each request (UART draft §8). In ONLINE a CONFIG with the installed identity is checked and acknowledged again; one with another identity, and any CONFIG while OFFLINE, is not answered. After a quick MCU restart that CONFIG can arrive before the first TELEMETRY of the new boot; the next TELEMETRY then shows the new identity and the Pi requests it.
+- **Heartbeat timing** (DD-90): every `heartbeat_ms` of the installed CONFIG (1 s before one), in every link state; an accepted CONFIG is followed at once by a heartbeat with its identity. The liveness gate of section 3 sits in `uart_tx`.
 - **MCU identity** (UART draft §4): every TELEMETRY and FAULT_UPDATE carries `boot_counter` (changes on every MCU reset) and `config_revision`. A change logs `MCU_RESTART` (or `CONFIG_CHANGE`) and sends the Pi to WAIT_CONFIG. The new CONFIG carries `fw_major.minor.patch`; a change logs `FW_CHANGE` (S7.5, `detail` = `1.2.0 -> 1.3.0`).
 - **CONFIG is the only source** of limits, capacity, fan tables, fan fault and offline parameters and the 3 s timeout (`pi_data_timeout_ms`) (S2.4, DD-24). Before the first CONFIG the Pi uses 3 s. The Pi validates it as listed in UART draft §7 (schema 1, exact length, reserved bytes zero, LFP 4S3P, NTC1–3 present, 2–8 strictly increasing fan points, …). The last valid CONFIG is kept in RAM for the running identity and stored in `mcu_config` (DD-43); after a Pi restart it is always re-requested.
 
@@ -206,6 +209,12 @@ Agreed 2026-11-02, except DD-77, still proposed (D8 sweep: decisions in this doc
 | DD-78 | "Pi shutdown" = clean core stop (partial interval written, open snapshot finished, `SHUTDOWN` logged), then power-off of the Pi only; fans at 100 % until the Pi starts again; no reboot action. |
 | DD-79 | Clock valid on an NTP sync (chrony) or with a readable RTC whose year is at least the build year; an NTP sync also sets the RTC. |
 | DD-80 | Every link and MCU state change is a `STATE_CHANGE` event; link flapping within 10 s is logged once with a count. |
+
+Proposed 2026-11-23 (found while writing the link supervisor, `monitor/bess-core/src/link.rs`):
+
+| ID | Decision |
+|---|---|
+| DD-90 | Only TELEMETRY / FAULT_UPDATE move the link out of OFFLINE; CONFIG answered in WAIT_CONFIG and, in ONLINE, only with the installed identity; heartbeat every `heartbeat_ms` from CONFIG (1 s before), in every link state, and once at once after acceptance; DD-80 counts per kind of change; `FW_CHANGE` also across Pi restarts (seeded from the last accepted `mcu_config` row). |
 
 Open:
 

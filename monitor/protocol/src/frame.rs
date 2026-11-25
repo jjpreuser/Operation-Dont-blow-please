@@ -57,6 +57,7 @@ impl MessageId {
     ];
 
     /// The exact payload length N for this message.
+    #[must_use]
     pub const fn payload_len(self) -> usize {
         match self {
             MessageId::Telemetry | MessageId::FaultUpdate => 38,
@@ -69,6 +70,8 @@ impl MessageId {
         }
     }
 
+    /// Which side sends this message.
+    #[must_use]
     pub fn direction(self) -> Direction {
         match self {
             MessageId::Telemetry
@@ -135,7 +138,14 @@ impl fmt::Display for EncodeError {
 
 impl std::error::Error for EncodeError {}
 
+/// The length byte is a `u8`, so every payload must fit in it.
+const _: () = assert!(MAX_PAYLOAD_LEN <= u8::MAX as usize);
+
 /// Builds a complete frame (header through CRC).
+///
+/// # Errors
+///
+/// [`EncodeError::WrongLength`] if `payload` is not exactly `id.payload_len()` bytes.
 pub fn encode(id: MessageId, sequence: u8, payload: &[u8]) -> Result<Vec<u8>, EncodeError> {
     let expected = id.payload_len();
     if payload.len() != expected {
@@ -145,14 +155,25 @@ pub fn encode(id: MessageId, sequence: u8, payload: &[u8]) -> Result<Vec<u8>, En
             actual: payload.len(),
         });
     }
+    Ok(build(id, sequence, payload))
+}
+
+/// [`encode`] without the length check, for callers whose payload type has
+/// the exact length by construction (the typed messages).
+pub(crate) fn build(id: MessageId, sequence: u8, payload: &[u8]) -> Vec<u8> {
+    debug_assert_eq!(payload.len(), id.payload_len());
     let mut out = Vec::with_capacity(payload.len() + OVERHEAD);
     out.extend_from_slice(&HEADER);
-    // N ≤ 190 for every known id, so the cast cannot truncate.
-    out.extend_from_slice(&[PROTOCOL_VERSION, id as u8, expected as u8, sequence]);
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "N <= MAX_PAYLOAD_LEN <= 255, asserted at compile time above"
+    )]
+    let len = id.payload_len() as u8;
+    out.extend_from_slice(&[PROTOCOL_VERSION, id as u8, len, sequence]);
     out.extend_from_slice(payload);
     let crc = crc16(&out[2..]);
     out.extend_from_slice(&crc.to_le_bytes());
-    Ok(out)
+    out
 }
 
 /// Sender-side sequence counter: +1 per emitted frame, modulo 256.
@@ -162,6 +183,8 @@ pub struct SequenceCounter {
 }
 
 impl SequenceCounter {
+    /// A counter whose first frame gets sequence `first`.
+    #[must_use]
     pub fn new(first: u8) -> SequenceCounter {
         SequenceCounter { next: first }
     }

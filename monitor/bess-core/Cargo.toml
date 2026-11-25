@@ -1,0 +1,26 @@
+[package]
+name = "bess-core"
+description = "Pi monitor core service: BMS link supervision, fan duty, live state, event detection and the SQLite log (DD-02, DD-71)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+jiff = "1.0.2"
+protocol = { path = "../protocol" }
+rusqlite = { version = "0.43.0", features = ["bundled"] }
+tokio = { version = "1.54.1", features = ["rt", "macros", "sync", "time", "signal"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+# The simulated MCU end for the end-to-end tests.
+protocol = { path = "../protocol", features = ["sim"] }
+tempfile = "3.27.0"
+# Paused time: the end-to-end tests run the tasks on a virtual clock.
+tokio = { version = "1.54.1", features = ["test-util"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1.1.6", features = ["termios", "fs", "std"] }

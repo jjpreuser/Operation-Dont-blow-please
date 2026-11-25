@@ -1,6 +1,6 @@
 # D1 – Pi software architecture
 
-Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); **in review since 2026-10-29**: DD-70 proposed (D8 sweep: a decision in this document that had no DD), DD-71 (repository layout per S1.3) agreed and the same day proposed again with a fifth crate `bess-fan-failsafe` (DD-59), and section 2 completed with the channels other documents rely on (writers to `db_writer`, E12 to `event_detector`, fan re-enable, RESET_ACK); open points below. DD-70 and DD-71 agreed 2026-11-02. On 2026-11-02 DD-19 dropped Slint and DD-87 proposed egui in the cage compositor. Follows DD-02 (core service + display app) and DD-03 (native Rust UI).
+Status: **Agreed 2026-10-27**, revised the same day for the firmware UART draft (DD-40, [decisions.md](decisions.md)); **in review since 2026-10-29**: DD-70 proposed (D8 sweep: a decision in this document that had no DD), DD-71 (repository layout per S1.3) agreed and the same day proposed again with a fifth crate `bess-fan-failsafe` (DD-59), and section 2 completed with the channels other documents rely on (writers to `db_writer`, E12 to `event_detector`, fan re-enable, RESET_ACK); open points below. DD-70 and DD-71 agreed 2026-11-02. On 2026-11-02 DD-19 dropped Slint and DD-87 proposed egui in the cage compositor. Follows DD-02 (core service + display app) and DD-03 (native Rust UI). **Code** since 2026-11-24: the `bess-core` binary runs the tasks of section 2 as tokio tasks with the channels drawn there (`monitor/bess-core/src/tasks/`, one module per box, plus a `live_state` task that merges the inputs of the live state watch), with port reader and writer threads and the `db_writer` thread (DD-99, agreed 2026-11-25); `clock_manager`, `maintenance` backups, `cloud_uploader`, `api_server` and the fan output are still to do.
 
 ## 1. Processes and external interfaces
 
@@ -126,8 +126,8 @@ Every task that logs an event or changes `core_state` sends it to `db_writer` (D
 |---|---|---|
 | `protocol` | lib | Frame envelope, CRC-16/CCITT-FALSE, encoder + decoder for all UART draft messages, CONFIG validation; tested against the draft's reference frames and C-generated frames (S5.11, DD-40). Shared with the `/protocol` spec. |
 | `bess-api` | lib | Serde types for the HTTP/JSON API and live stream (used by core, display and dashboard tests). |
-| `bess-core` | bin | All tasks above. |
-| `bess-display` | bin | Native touchscreen UI; only talks to `bess-api` over the Unix socket. |
+| `bess-core` | bin (lib first) | All tasks above. Started 2026-11-23 as a library of I/O-free task logic, tested on a PC (S1.5): `link` = `link_supervisor` (D5 §2, DD-90), `fan` = the duty rules of `fan_controller` (D4 §3–4, DD-91; E12 and the dead-fan rule still to come); `sample`, `state`, `colour`, `faults`, `live` = the live state for the screen (SI sample, shown state, value colours DD-92, provisional Table A copy, LiveState). Since 2026-11-24 also the tasks themselves (`tasks/`, DD-99) and the binary. |
+| `bess-display` | bin | Native touchscreen UI on the 5-inch Touch Display 2 (720 × 1280, DD-89); only talks to `bess-api` over the Unix socket. Started 2026-11-23 as a preview (egui, DD-87, DD-93): until `bess-api` exists it runs the `bess-core` core itself (every task, `Core::run`) against a simulated MCU over the real UART bytes, and the screen reads the core's live-state watch (DD-94). |
 | `bess-fan-failsafe` | bin | Small separate program that writes 100 % to both fan controllers over I2C and exits; run by systemd from `ExecStopPost=` of `bess-core` and from an early boot unit (DD-59, [fan-hardware.md](fan-hardware.md) §4). |
 
 Repository layout (DD-71; agreed 2026-11-02) follows S1.3: `/monitor` (this workspace, renamed from `Pi/` on 2026-10-29), `/protocol` (UART specification, the one document for C and Rust, S5.10, with reference frames and the CONFIG validation list), `/firmware` (C, MCU) and `/docs`. `/protocol` and `/firmware` are filled once the firmware team agrees to work in this repository; until then the UART specification stays their draft in `Research/`.
@@ -153,6 +153,8 @@ Agreed 2026-11-02:
 
 Proposed 2026-11-02:
 
-- DD-87 Toolkit: egui/eframe + `egui_plot` inside the cage kiosk compositor; `cargo-deny` and `cargo-about` in CI; to check on the Pi 4 touchscreen.
+- DD-87 Toolkit: egui/eframe + `egui_plot` inside the cage kiosk compositor; `cargo-deny` and `cargo-about` in CI; to check on the Pi 4 with the Touch Display 2.
+- DD-88 (proposed) Pi header pin map in [pi-pinout.md](pi-pinout.md): MCU UART on the PL011 (GPIO14/15), serial console off.
+- DD-89 Touchscreen: Raspberry Pi Touch Display 2, 5-inch, 720 × 1280, DSI.
 
 Open: SoH method (D9). Fan controller hardware and core-down fallback proposed in D10 ([fan-hardware.md](fan-hardware.md), DD-56 to DD-61).

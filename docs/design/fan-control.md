@@ -1,6 +1,6 @@
 # D4 – Fan control
 
-Status: **Agreed 2026-11-02, except DD-54, still proposed** (DD-51 to DD-55, [decisions.md](decisions.md); DD-76 agreed 2026-10-29: a dead fan is switched off and the other runs at 100 %, details DD-85 agreed 2026-11-02; state FAN_OFF added to the E12 diagram in section 5 on 2026-10-29, DD-85); open points in section 6. Builds on D1 ([architecture.md](architecture.md)): `fan_controller`; D5 ([lifecycle.md](lifecycle.md)): link states, heartbeat liveness (DD-26); D6 ([fault-handling.md](fault-handling.md)): E12 merged into the fault set. Decisions it relies on: DD-16 (OFFLINE behaviour from CONFIG), DD-24 (fan tables only from CONFIG), DD-28 (100 % before CONFIG and with action 0), DD-39 (E12 Pi-only), DD-41 (invalid fields), DD-42 (E-STOP → off).
+Status: **Agreed 2026-11-02, except DD-54, still proposed** (DD-51 to DD-55, [decisions.md](decisions.md); DD-76 agreed 2026-10-29: a dead fan is switched off and the other runs at 100 %, details DD-85 agreed 2026-11-02; state FAN_OFF added to the E12 diagram in section 5 on 2026-10-29, DD-85); DD-91 (details from writing the duty rules, `monitor/bess-core/src/fan.rs`, agreed 2026-11-25); open points in section 6. **Code** since 2026-11-24: the `fan_controller` task (`monitor/bess-core/src/tasks/fan.rs`) runs the rules on every frame and each second and gates the heartbeat (DD-26, DD-99); not written yet: the EMC2101 output, the RPM reading and E12, `FAN_CTRL_RESET` and the dead-fan rule (wait for the fan bench tests). Builds on D1 ([architecture.md](architecture.md)): `fan_controller`; D5 ([lifecycle.md](lifecycle.md)): link states, heartbeat liveness (DD-26); D6 ([fault-handling.md](fault-handling.md)): E12 merged into the fault set. Decisions it relies on: DD-16 (OFFLINE behaviour from CONFIG), DD-24 (fan tables only from CONFIG), DD-28 (100 % before CONFIG and with action 0), DD-39 (E12 Pi-only), DD-41 (invalid fields), DD-42 (E-STOP → off).
 
 Requirements: S6.1 (fan control on the Pi), S6.2 (table from the MCU, linear interpolation, ≤ 8 points, duty ± 1 %), S6.3 (max of NTC1 and NTC3 tables), S6.4 (on 30 °C / off 27 °C, ≥ 30 % while on, 100 % at 45 °C), S6.5 (100 % on E05, E-stop overrides), S6.6 (E12 when speed < 70 % of expected for 5 s), S6.7 (hardware fallback, D10), S6.8 (100 % on E17), E7.7 (E-stop → fans off), S8 (fan duty and speed shown), Tables C and C2. UART draft V2 §6–7: CONFIG fan fields and tables.
 
@@ -60,6 +60,8 @@ Notes:
 - **E05 / E17** stay forced until the MCU clears the bit. The MCU owns the Table E recovery conditions (E05: ≤ 50 °C for 5 s; E17: NTC3 ≤ 40 °C for 5 s), so the Pi needs no own release logic.
 - **Dead fan** (DD-76, DD-85): when E12 is raised for one fan, `fan_controller` sets that fan's controller to 0 % and the other fan's to 100 % (one controller per fan, DD-84). The last running fan is never switched off: with both fans low, both stay on at 100 %. The off state is independent of the duty rules: a switched-off fan stays at 0 % in every row above until "Re-enable fan" (section 5).
 - **New identity** (MCU restart or new `config_revision`, D5 §2): the old CONFIG no longer applies, so the fans run at 100 % until the new CONFIG is accepted (DD-55). This is usually 1–2 s.
+- **Curve state while forced** (DD-91): both curves keep updating their on/off state while E05 / E17 force 100 %, so the right state is used when the fault clears. A new CONFIG identity resets them (start-up rule of section 4 again); the same CONFIG after OFFLINE keeps them.
+- **Hold without a real time** (DD-91): action 1 with `fan_offline_ms` = 65535 (undecided) runs 100 %, like action 0.
 - The control **reason** is shown on the display next to the duty ("100 % – E05 overheating", "Off – E-STOP", "100 % – waiting for BMS configuration"), so a technician can see why the fans run.
 
 ## 4. The two curves (S6.2–S6.4)
@@ -86,7 +88,7 @@ stateDiagram-v2
 ```
 
 - **Interpolation:** linear between the active points of the table, rounded to the nearest integer, half upward (UART draft §7). Below the first point → the first point's duty; above the last point → the last point's duty (100 % at 45 °C). The > 55 °C and > 45 °C rows of Tables C/C2 are not table points; they are E05/E17 (section 3).
-- **Fan demand** = max(battery demand, air demand) (S6.3); the curve with the higher demand is the **driving curve** (used for E12, section 5). On a tie the battery curve drives.
+- **Fan demand** = max(battery demand, air demand) (S6.3); the curve with the higher demand is the **driving curve** (used for E12, section 5). On a tie the battery curve drives, also when both are off; with E05 and E17 both active the reason is E05 (DD-91).
 - **Invalid temperature** (validity bit clear, DD-41): that curve demands 100 % (DD-52). A broken sensor must not switch the fans off; the MCU raises its own sensor fault.
 - **Start-up state:** a curve starts ON when the temperature is above its off point, so the Pi never stops fans that may have been running inside the hysteresis band before a restart.
 - **Example** (Table C, battery 38 °C, air 33 °C, air curve OFF): battery = 30 + (38 − 30) / (40 − 30) × (65 − 30) = 58 %; air = 0 %; duty 58 %.
@@ -137,6 +139,7 @@ DD-51, DD-53 and DD-85 agreed 2026-11-02; DD-52 and DD-55 agreed 2026-10-28; DD-
 | DD-55 | When the MCU identity changes, the old CONFIG is dropped and fans run at 100 % until the new CONFIG is accepted (extends DD-28). |
 | DD-76 | When E12 is raised for one fan, that fan is switched off and the other runs at 100 %. |
 | DD-85 | Dead-fan rule after E05/E17 and before the curves; never switch off the last running fan; the fan stays off with E12 active until a PIN-protected "Re-enable fan"; off state kept in `core_state`. |
+| DD-91 | (proposed 2026-11-23, from writing `monitor/bess-core/src/fan.rs`) Curves keep their state current while forced; a new CONFIG identity resets them; hold with `fan_offline_ms` 65535 runs 100 %; E05 named over E17, battery curve named on a tie. |
 
 Open:
 

@@ -1,12 +1,12 @@
 # Software test plan
 
-Draft, 2026-11-02. Covers all 135 software requirements (S1–S11) from the Miro Software Backlog. Levels L0–L5 and Cloud are defined in [test-levels.md](test-levels.md).
+Draft, 2026-11-02; [section 5](#5-tests-in-the-repo) added 2026-11-25 with the tests written so far. Covers all 135 software requirements (S1–S11) from the Miro Software Backlog. Levels L0–L5 and Cloud are defined in [test-levels.md](test-levels.md).
 
 | Section | Scope | Requirements | Test status |
 |---|---|---|---|
 | [1. Firmware](#1-firmware) | Only the BMS firmware on the MCU | 35 | Listed only; tests to be written with the firmware team |
-| [2. Combined](#2-combined) | Firmware and the Pi or the whole repo | 21 | Tests below |
-| [3. Non-firmware](#3-non-firmware) | Pi app, fans and cloud | 79 | Tests below |
+| [2. Combined](#2-combined) | Firmware and the Pi or the whole repo | 21 | Tests below; Pi-side L0 and L1 tests written ([section 5](#5-tests-in-the-repo)) |
+| [3. Non-firmware](#3-non-firmware) | Pi app, fans and cloud | 79 | Tests below; L1 tests written for fans, display logic and storage ([section 5](#5-tests-in-the-repo)) |
 
 Fan requirements are all in section 3, including those that use a fault bit from the MCU.
 
@@ -35,7 +35,7 @@ The tests marked "real MCU" need the firmware and a Pi connected over UART. Unti
 | S1.3 | Must | I | L0 | Check the repo layout | `/firmware`, `/monitor`, `/protocol` and `/docs` exist with the agreed content |
 | S1.5 | Should | T | L1 | Run the hardware-free logic of both code bases on a PC | State machine, SoC, fan curve and limit checks build and pass with no hardware attached |
 | S1.8 | Should | D | L3, L5 | Read both versions on the dashboard, raise a fault, read the stored event | Both are MAJOR.MINOR.PATCH, shown correctly and stored with the fault (DD-36) |
-| S1.9 | Should | T | L0 | CI runs the build, format and static checks of both code bases | C: `-Wall -Wextra`, clang-format, cppcheck clean. Rust: `cargo fmt`, `cargo clippy` clean. Zero warnings |
+| S1.9 | Should | T | L0 | CI runs the build, format and static checks of both code bases | C: `-Wall -Wextra`, clang-format, cppcheck clean. Rust: `cargo fmt`, `cargo clippy` (all + pedantic), `cargo doc` and `cargo deny` clean. Zero warnings |
 | S1.11 | Should | I | L0 | Check the branch protection and a sample of merged pull requests | One repo; merges to main only through a pull request reviewed by another team member |
 | S1.12 | Should | T | L0, L1 | CI runs the Unity/Ceedling and `cargo test` suites on a push | Runs on every push; every error code has trigger and recovery tests; the fan curve has tests |
 | S1.13 | Must | I | L0 | Review `/docs` against the list on the card | All eight documents are present and current |
@@ -76,7 +76,7 @@ The tests marked "real MCU" need the firmware and a Pi connected over UART. Unti
 | Req | M | V | Level | Test | Pass when |
 |---|---|---|---|---|---|
 | S1.2 | Must | I | L0 | Check the source and `rust-toolchain.toml` | Pi app is Rust; toolchain version is pinned |
-| S7.4 | Must | D | L5 | Cold-start the Pi 10 times and time power-on to app on screen | Full-screen without login, ≤ 60 s every time |
+| S7.4 | Must | D | L5 | Cold-start the Pi 10 times with the Touch Display 2 and time power-on to app on screen (the display alone can take up to a minute, DD-89) | Full-screen without login, ≤ 60 s every time |
 
 ### Fans
 
@@ -93,7 +93,7 @@ The tests marked "real MCU" need the firmware and a Pi connected over UART. Unti
 
 ### Touchscreen display
 
-Run on the real touchscreen (L5) with values from the simulator. Automated checks at L3 run against the API (DD-14) that feeds the display.
+Run on the real touchscreen (L5: Raspberry Pi Touch Display 2, 5-inch, 720 × 1280, DD-89) with values from the simulator. Automated checks at L3 run against the API (DD-14) that feeds the display.
 
 | Req | M | V | Level | Test | Pass when |
 |---|---|---|---|---|---|
@@ -199,3 +199,41 @@ All at the Cloud level, or by inspection. These tests start once TE IT approves 
 - **TBC limits:** S5.8, S6.7, S7.4, S8.11, S8.13, S9.12, S10.9, S10.16 and S10.17 contain values marked TBC on the card.
 - **Verification method:** S5.5, S7.4, S8.9 and S9.12 have measurable limits or logic but are marked D; S10.2 and S11.8 are marked I. The tests above already measure them; ask the requirements owner to change the method.
 - **Proposed numbers:** the trial counts (S5.5 20, S7.4 10, S10.1 20) and the 1 h log in S5.8 are proposals from this plan, not requirements.
+
+## 5. Tests in the repo
+
+Status 2026-11-25: the tests written so far, all in `monitor/` and run by CI ([monitor-ci.yml](../../.github/workflows/monitor-ci.yml)) on every push. Paths are relative to `monitor/`; a file under `src/` holds its tests in a `tests` module at the bottom.
+
+`bess-core/tests/runtime.rs` and the `bess-display` preview tests (`src/pipeline.rs`) run the whole core in `cargo test` against a simulated MCU (`protocol::sim`) over an in-process link. It counts as L1 here: the L3 run on a virtual serial port with scripted scenarios is still to do for every requirement below.
+
+| Req | Level done | Tests | What they cover | Still to do |
+|---|---|---|---|---|
+| S1.2 | L0 | `rust-toolchain.toml`, CI | Pinned toolchain; every Pi crate is Rust | – |
+| S1.5 | L1 | Every `cargo test` suite | Link supervisor, fan curve and colour limits run on a PC with no hardware | Firmware side (Ceedling) |
+| S1.9 | L0 | CI | `cargo fmt`, `cargo clippy` (all + pedantic as errors), `cargo doc -D warnings`, `cargo deny`, `--locked` | C checks once the firmware is in the repo |
+| S1.12 | L0, L1 | CI; `bess-core/tests/detector.rs` (`every_error_code_has_a_trigger_and_a_recovery`); `bess-core/tests/fan.rs` | `cargo test` on every push; trigger and recovery for every Table A code; the fan curve | E12 (waits for the fan tests); Unity/Ceedling |
+| S2.4 | L1 (Pi side) | `bess-core/tests/link.rs`, `bess-core/tests/runtime.rs`, `bess-core/tests/display.rs` | No live values before a valid CONFIG; invalid, unsupported and other-identity CONFIGs refused; a restart or new revision goes back to WAIT_CONFIG; faults show while waiting | L3, real MCU |
+| S5.9 | L1 | `protocol/tests/parser.rs`, `frame.rs`, `messages.rs`, `crc.rs` | Valid frames decode; bad CRC, length, version, unknown ID and truncated frames are counted and skipped; random noise never panics and the parser resyncs | L2 with frames from the C code |
+| S5.11 | – | `protocol/src/reference.rs`, used by every test suite | Reference frames typed in from the firmware draft, decoded and re-encoded | Frames generated from the C code in CI (needs the firmware) |
+| S6.2 | L1 | `bess-core/tests/fan.rs` | Interpolation at, between and outside the points; 2 and 8 points; the table comes from CONFIG | L5 (PWM output not written yet) |
+| S6.3 | L1 | `bess-core/tests/fan.rs` | Higher curve wins; equal curves; an invalid input demands 100 % | – |
+| S6.4 | L1 | `bess-core/tests/fan.rs` | On at 30 °C with 30 %; stays on until 27 °C; no oscillation in the band; core start inside the band | – |
+| S6.5 | L1 | `bess-core/tests/fan.rs` | E05 forces 100 % and the curve returns when it clears; E-stop wins over every rule | L3 |
+| S6.8 | L1 | `bess-core/tests/fan.rs` | E17 forces 100 % and the curve returns when it clears | L3 |
+| S8.8 | L1 | `bess-core/tests/display.rs` | Wire current inverted once; power needs both voltage and current | L3 (needs `bess-api`) |
+| S8.9 | L1 | `bess-core/tests/display.rs` | Shown-state priority table; E-STOP kept while OFFLINE | L3, L5 |
+| S8.10 | L1 (logic) | `bess-core/tests/display.rs` | Table A names; sorted by severity then code; red banner only for critical faults | L3, L5 (screen) |
+| S8.11 | L1 | `bess-core/tests/display.rs` | Yellow and red at the card limits and from CONFIG; invalid values never coloured | L5 |
+| S8.12 | L1 (logic) | `bess-core/tests/link.rs`, `bess-core/tests/display.rs` | OFFLINE 3 s after the last valid frame; values greyed; recovery | L3; "Monitor service restarting…" needs `bess-api` |
+| S10.1 | L1 (part) | `bess-core/src/db/mod.rs` | New file gets WAL and `synchronous=FULL` | Power-cut test (L3, L5) |
+| S10.2 | L1 | `bess-core/src/ring.rs` | Holds the last hour of 1 s samples; drops older ones after a gap | L3 (watch the writes) |
+| S10.3 | L1 | `bess-core/src/aggregate.rs`, `src/db/aggregates.rs`, `tests/runtime.rs` | 10-min alignment, min/avg/max, Ah and Wh, gaps and invalid values, restart merge | L3 replay |
+| S10.4 | L1 | `bess-core/src/db/aggregates.rs`, `src/db/maintenance.rs`, `src/wallclock.rs`, `tests/runtime.rs` | Daily record, DST days, catch-up of missed days, compaction only for days with a daily record | L3 |
+| S10.5 | L1 | `bess-core/src/db/events.rs`, `tests/detector.rs`, `tests/runtime.rs` | Faults and events stored with their values; the size guard never deletes events | L3 (time the write) |
+| S10.6 | L1 | `bess-core/tests/detector.rs`, `src/db/snapshots.rs` | ±60 s snapshot; overlap extends it; short before-part just after start-up | L3 |
+| S10.7 | L1 (part) | `bess-core/src/db/aggregates.rs` | 10-min rows kept at least 30 days | L3 run with an advanced clock |
+| S10.8 | L1 (part) | `bess-core/src/db/maintenance.rs` | Size guard removes the oldest snapshots first | L3 fill with 4 years of data |
+| S10.10 | L1 | `bess-core/src/wallclock.rs`, `tests/runtime.rs` | UTC ISO text format, local time, nothing timestamped without a valid clock | `clock_manager` (chrony, RTC, DD-79) and the queue for events from before the clock is valid (DD-31), not written yet; then L3 (shown in local time) |
+| S10.17 | L1 | `bess-core/tests/runtime.rs` | `clean`, `crash` and `power loss` told apart at start-up | L3, L5 (resume within 60 s) |
+
+No code yet, so no tests: S6.6 (E12), S8.13, S9 (dashboard), S10.9 (SoH), S10.11 to S10.16 (CSV, download, backups, upload, clock) and the display screens of S8.1 to S8.7.
