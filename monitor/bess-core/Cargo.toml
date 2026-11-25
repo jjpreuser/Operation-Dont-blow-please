@@ -1,6 +1,6 @@
 [package]
 name = "bess-core"
-description = "Pi monitor core service: BMS link supervision and, later, fan control, logging and the API (DD-02, DD-71)"
+description = "Pi monitor core service: BMS link supervision, fan duty, live state, event detection and the SQLite log (DD-02, DD-71)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
