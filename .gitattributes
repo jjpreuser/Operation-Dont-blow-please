@@ -1,0 +1,10 @@
+# Line endings: LF in the repo and in every checkout, also on Windows with
+# core.autocrlf=true, so diffs and rustfmt never see CRLF churn.
+* text=auto eol=lf
+
+# Binary documents in Research/
+*.pdf  binary
+*.docx binary
+*.xlsx binary
+*.png  binary
+*.jpg  binary
