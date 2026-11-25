@@ -11,9 +11,8 @@
 //!
 //! Defaults: `/var/lib/bess/bess.db` and `/dev/ttyAMA0` (DD-88).
 
-use bess_core::db::{CoreKey, Store};
+use bess_core::db::Store;
 use bess_core::runtime::{self, Core, interim_clock, link_pair, startup_events};
-use bess_core::wallclock::parse_utc_text;
 use bess_core::writer::{self, DEFAULT_SOFT_LIMIT_BYTES, DbCommand, WriterSettings};
 use jiff::tz::TimeZone;
 use std::path::PathBuf;
@@ -63,26 +62,13 @@ fn start() -> Result<(), String> {
     let tz = TimeZone::system();
 
     let mut store = Store::open(&args.db).map_err(|e| format!("{}: {e}", args.db.display()))?;
-    let stale = store
-        .complete_stale_snapshots()
-        .map_err(|e| e.to_string())?;
-    if stale > 0 {
-        eprintln!("bess-core: {stale} snapshot(s) left open by the last run marked complete");
+    let startup = runtime::prepare_store(&mut store).map_err(|e| e.to_string())?;
+    if startup.stale_snapshots > 0 {
+        eprintln!(
+            "bess-core: {} snapshot(s) left open by the last run marked complete",
+            startup.stale_snapshots
+        );
     }
-    let open_faults = store.open_fault_codes().map_err(|e| e.to_string())?;
-    let last_firmware = store
-        .latest_accepted_config()
-        .map_err(|e| e.to_string())?
-        .map(|c| c.firmware);
-    let last_alive = store
-        .core_state(CoreKey::LastAliveTs)
-        .map_err(|e| e.to_string())?
-        .and_then(|t| parse_utc_text(&t));
-    let clean = store
-        .last_system_type()
-        .map_err(|e| e.to_string())?
-        .as_deref()
-        == Some("SHUTDOWN");
 
     let (db, writer) = writer::spawn(
         store,
@@ -95,7 +81,7 @@ fn start() -> Result<(), String> {
     // Without a valid clock these are not logged yet (the DD-31 queue is
     // still to do).
     if let Some(now) = interim_clock() {
-        for event in startup_events(now, last_alive, clean) {
+        for event in startup_events(now, startup.last_alive, startup.clean) {
             let _ = db.send(DbCommand::Event(event));
         }
     }
@@ -106,7 +92,7 @@ fn start() -> Result<(), String> {
     runtime::spawn_reader(reader_port, end.from_mcu).map_err(|e| e.to_string())?;
     let tx_thread = runtime::spawn_writer(port, end.to_mcu).map_err(|e| e.to_string())?;
 
-    let core = Core::new(tz, open_faults, last_firmware);
+    let core = Core::new(tz, startup.open_faults, startup.last_firmware);
     // `api_server` will hold the live state receiver (DD-14).
     let _live = core.live();
     let rt = tokio::runtime::Builder::new_current_thread()

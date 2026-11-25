@@ -64,6 +64,15 @@ fn snapshot_sql() -> &'static str {
     })
 }
 
+/// Row counts of the tables graphs and exports read.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct StoredCounts {
+    pub ten_min: u64,
+    pub daily: u64,
+    pub snapshots: u64,
+    pub events: u64,
+}
+
 fn timestamp(row: &Row, column: usize) -> Result<Timestamp> {
     let text: String = row.get(column)?;
     parse_utc_text(&text).ok_or(StoreError::BadTimestamp(text))
@@ -171,6 +180,48 @@ impl Store {
             Ok(())
         })?;
         Ok(count)
+    }
+
+    /// How many rows the read-back tables hold: for a status line (the
+    /// System info page, S9.11, and the display preview).
+    ///
+    /// # Errors
+    ///
+    /// SQLite errors.
+    pub fn stored_counts(&self) -> Result<StoredCounts> {
+        let count = |sql: &str| -> Result<u64> {
+            let n: i64 = self.conn.query_row(sql, [], |r| r.get(0))?;
+            Ok(u64::try_from(n).unwrap_or(0))
+        };
+        Ok(StoredCounts {
+            ten_min: count("SELECT count(*) FROM agg_10min")?,
+            daily: count("SELECT count(*) FROM agg_daily")?,
+            snapshots: count("SELECT count(*) FROM snapshot")?,
+            events: count("SELECT count(*) FROM event")?,
+        })
+    }
+
+    /// The newest fault snapshot: its id and start time.
+    ///
+    /// # Errors
+    ///
+    /// As [`Store::points`].
+    pub fn latest_snapshot(&self) -> Result<Option<(i64, Timestamp)>> {
+        let found: Option<(i64, String)> = self
+            .conn
+            .query_row(
+                "SELECT id, ts_start FROM snapshot ORDER BY id DESC LIMIT 1",
+                [],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        found
+            .map(|(id, text)| {
+                parse_utc_text(&text)
+                    .map(|ts| (id, ts))
+                    .ok_or(StoreError::BadTimestamp(text))
+            })
+            .transpose()
     }
 
     /// Whether a snapshot with this id exists.
@@ -642,6 +693,23 @@ mod tests {
              2026-11-25T10:00:01.000Z,2026-11-25 11:00:01,FAULT,,-3.50\r\n\
              2026-11-25T10:00:02.000Z,2026-11-25 11:00:02,FAULT,12.500,-3.50\r\n"
         );
+    }
+
+    #[test]
+    fn counts_and_the_latest_snapshot() {
+        let store = Store::open_in_memory().unwrap();
+        assert_eq!(store.stored_counts().unwrap(), StoredCounts::default());
+        assert_eq!(store.latest_snapshot().unwrap(), None);
+        let (store, id) = store_with_snapshot();
+        assert_eq!(
+            store.latest_snapshot().unwrap(),
+            Some((id, ts("2026-11-25T10:00:00Z")))
+        );
+        let counts = store.stored_counts().unwrap();
+        assert_eq!((counts.snapshots, counts.ten_min, counts.daily), (1, 0, 0));
+        let store = store_with_days();
+        let counts = store.stored_counts().unwrap();
+        assert_eq!((counts.ten_min, counts.daily), (5, 4));
     }
 
     #[test]

@@ -56,7 +56,19 @@ in `decisions.md` first.
 ```sh
 cargo run -p bess-display            # 720 × 1280 portrait screen, scaled down, with demo controls
 cargo run -p bess-display -- --kiosk # full-screen at 1:1, as on the Pi
+cargo run -p bess-display -- --data DIR  # keep the database and exports in DIR
 ```
+
+The preview's core writes a real database, `bess.db`, in `bess-display-preview`
+in the temp folder (or `--data DIR`). It is kept between runs, so 10-min records
+(one every 10 minutes, and a partial one when the window closes) and daily
+records (at 00:00 local, or at start-up for missed days) build up. The
+**Export (CSV)** section of the demo panel writes what is stored to `exports/`
+in the same folder, in the dashboard's CSV format (DD-62, DD-101): pick a range
+(the last hour comes from the 1 s ring buffer, up to 30 days from the 10-min
+records, older from the daily records) or the newest fault snapshot, then
+**Open file** opens it in the default app (Excel). Delete the folder to start
+over.
 
 **Core service** (on the Pi; the UART is Linux only):
 

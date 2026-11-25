@@ -120,6 +120,7 @@ dependencies = [
  "eframe",
  "jiff",
  "protocol",
+ "tempfile",
  "tokio",
 ]
 
