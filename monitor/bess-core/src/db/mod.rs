@@ -15,6 +15,7 @@
 mod aggregates;
 mod config;
 mod events;
+mod history;
 mod maintenance;
 mod schema;
 mod snapshots;
@@ -66,6 +67,10 @@ pub enum StoreError {
     },
     /// A date at the very edge of the supported range.
     Time(jiff::Error),
+    /// A stored time that does not read back as a timestamp (DD-06).
+    BadTimestamp(String),
+    /// Writing an export failed (for example the download was cancelled).
+    Io(std::io::Error),
 }
 
 impl fmt::Display for StoreError {
@@ -80,6 +85,8 @@ impl fmt::Display for StoreError {
                 write!(f, "database schema version {found}, expected {expected}")
             }
             StoreError::Time(e) => write!(f, "time: {e}"),
+            StoreError::BadTimestamp(text) => write!(f, "stored time {text:?} is not a timestamp"),
+            StoreError::Io(e) => write!(f, "write: {e}"),
         }
     }
 }
@@ -89,8 +96,17 @@ impl std::error::Error for StoreError {
         match self {
             StoreError::Sqlite(e) => Some(e),
             StoreError::Time(e) => Some(e),
-            StoreError::SchemaTooNew { .. } | StoreError::SchemaMismatch { .. } => None,
+            StoreError::Io(e) => Some(e),
+            StoreError::SchemaTooNew { .. }
+            | StoreError::SchemaMismatch { .. }
+            | StoreError::BadTimestamp(_) => None,
         }
+    }
+}
+
+impl From<std::io::Error> for StoreError {
+    fn from(e: std::io::Error) -> StoreError {
+        StoreError::Io(e)
     }
 }
 
