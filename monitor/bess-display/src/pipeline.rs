@@ -11,12 +11,12 @@ use crate::sim::DemoMcu;
 use bess_core::detector::Write;
 use bess_core::link::LinkView;
 use bess_core::live::LiveState;
-use bess_core::runtime::{interim_clock, link_pair, Core, LinkEnd};
+use bess_core::runtime::{Core, LinkEnd, interim_clock, link_pair};
 use bess_core::tasks::hub;
 use bess_core::writer::DbCommand;
 use protocol::messages::FaultBits;
 use std::collections::VecDeque;
-use std::sync::{mpsc, Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, mpsc};
 use std::time::{Duration, Instant};
 use tokio::sync::watch;
 
@@ -126,7 +126,7 @@ mod tests {
     //! End to end over the UART bytes: the demo MCU and the real core, on
     //! tokio's paused clock.
 
-    use super::{lock, start, Preview};
+    use super::{Preview, lock, start};
     use bess_core::fan::Reason;
     use bess_core::link::LinkState;
     use bess_core::live::{LiveState, Values};

@@ -12,7 +12,7 @@
 //!   themselves come from `link_supervisor`, so they also stop when that task
 //!   hangs. Either way the MCU raises E11 and stops charging (DD-26).
 
-use super::hub::{now, Clock, RxFrame};
+use super::hub::{Clock, RxFrame, now};
 use protocol::frame::{Direction, SequenceCounter};
 use protocol::messages::Message;
 use protocol::parser::{FrameParser, ParserStats};
@@ -179,7 +179,7 @@ pub async fn run_tx(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use protocol::messages::{Heartbeat, CONFIG_LEN};
+    use protocol::messages::{CONFIG_LEN, Heartbeat};
 
     fn decode(bytes: &[u8]) -> Vec<Message> {
         FrameParser::new(Direction::PiToMcu)
@@ -233,12 +233,15 @@ mod tests {
             frames.iter().map(|f| f.sequence).collect::<Vec<_>>(),
             vec![7, 8]
         );
-        assert!(frames
-            .iter()
-            .all(|f| f.message == Some(config.clone()) && f.utc == Some(utc) && f.at == t0));
+        assert!(
+            frames
+                .iter()
+                .all(|f| f.message == Some(config.clone()) && f.utc == Some(utc) && f.at == t0)
+        );
         // Pi → MCU frames are not accepted in this direction.
-        assert!(rx
-            .on_bytes(t0, None, &Message::ConfigRequest.encode(9))
-            .is_empty());
+        assert!(
+            rx.on_bytes(t0, None, &Message::ConfigRequest.encode(9))
+                .is_empty()
+        );
     }
 }

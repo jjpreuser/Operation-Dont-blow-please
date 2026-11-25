@@ -13,8 +13,8 @@
 use crate::aggregate::AggRow;
 use crate::db::{CoreKey, NewEvent, Result, Store};
 use crate::detector::Write;
-use jiff::tz::TimeZone;
 use jiff::Timestamp;
+use jiff::tz::TimeZone;
 use protocol::config::Config;
 use protocol::messages::AckStatus;
 use std::sync::mpsc::{self, Receiver, Sender};

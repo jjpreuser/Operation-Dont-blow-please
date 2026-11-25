@@ -12,9 +12,9 @@
 //! Defaults: `/var/lib/bess/bess.db` and `/dev/ttyAMA0` (DD-88).
 
 use bess_core::db::{CoreKey, Store};
-use bess_core::runtime::{self, interim_clock, link_pair, startup_events, Core};
+use bess_core::runtime::{self, Core, interim_clock, link_pair, startup_events};
 use bess_core::wallclock::parse_utc_text;
-use bess_core::writer::{self, DbCommand, WriterSettings, DEFAULT_SOFT_LIMIT_BYTES};
+use bess_core::writer::{self, DEFAULT_SOFT_LIMIT_BYTES, DbCommand, WriterSettings};
 use jiff::tz::TimeZone;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -144,7 +144,7 @@ fn open_port(path: &std::path::Path) -> Result<std::fs::File, String> {
 async fn stop_signal() {
     #[cfg(unix)]
     {
-        use tokio::signal::unix::{signal, SignalKind};
+        use tokio::signal::unix::{SignalKind, signal};
         if let Ok(mut term) = signal(SignalKind::terminate()) {
             tokio::select! {
                 _ = term.recv() => {}

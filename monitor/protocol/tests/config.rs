@@ -5,13 +5,13 @@
 
 mod common;
 
-use common::{hex, CONFIG, TELEMETRY_CORRECTED};
+use common::{CONFIG, TELEMETRY_CORRECTED, hex};
 use protocol::config::{
     Config, ConfigFlags, CurrentProfile, FanOfflineAction, FanPoint, FanTable, FirmwareVersion,
-    Rejection, Table, Violation, TABLE_SLOTS,
+    Rejection, TABLE_SLOTS, Table, Violation,
 };
 use protocol::frame::Direction;
-use protocol::messages::{AckStatus, ConfigAck, Identity, Message, Telemetry, CONFIG_LEN};
+use protocol::messages::{AckStatus, CONFIG_LEN, ConfigAck, Identity, Message, Telemetry};
 use protocol::parser::FrameParser;
 
 const REFERENCE_IDENTITY: Identity = Identity {

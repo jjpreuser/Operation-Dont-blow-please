@@ -38,7 +38,7 @@
 //!   logs at most one event per kind of change per 10 s (DD-80).
 
 use protocol::config::{Config, FirmwareVersion, Rejection};
-use protocol::messages::{AckStatus, Heartbeat, Identity, Message, CONFIG_LEN};
+use protocol::messages::{AckStatus, CONFIG_LEN, Heartbeat, Identity, Message};
 use std::fmt;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -266,11 +266,7 @@ pub struct LinkSupervisor {
 /// from now if the caller woke up later than that.
 fn advance(due: Instant, period: Duration, now: Instant) -> Instant {
     let next = due + period;
-    if next <= now {
-        now + period
-    } else {
-        next
-    }
+    if next <= now { now + period } else { next }
 }
 
 impl LinkSupervisor {
@@ -418,10 +414,10 @@ impl LinkSupervisor {
     pub fn poll(&mut self, now: Instant) -> Vec<Output> {
         let mut out = Vec::new();
         self.flap.flush(now, &mut out);
-        if let (true, Some(last)) = (self.state != LinkState::Offline, self.last_frame) {
-            if now.saturating_duration_since(last) >= self.data_timeout() {
-                self.enter(LinkState::Offline, now, &mut out);
-            }
+        if let (true, Some(last)) = (self.state != LinkState::Offline, self.last_frame)
+            && now.saturating_duration_since(last) >= self.data_timeout()
+        {
+            self.enter(LinkState::Offline, now, &mut out);
         }
         if self.state == LinkState::WaitConfig && now >= self.next_request {
             out.push(Output::Send(Message::ConfigRequest));

@@ -95,12 +95,16 @@ mod tests {
     fn a_config_is_stored_once_per_identity_with_its_raw_bytes() {
         let mut store = Store::open_in_memory().unwrap();
         let config = reference_config();
-        assert!(store
-            .insert_mcu_config(ts("2026-11-24T10:00:00Z"), &config, AckStatus::Accepted)
-            .unwrap());
-        assert!(!store
-            .insert_mcu_config(ts("2026-11-24T10:00:01Z"), &config, AckStatus::Accepted)
-            .unwrap());
+        assert!(
+            store
+                .insert_mcu_config(ts("2026-11-24T10:00:00Z"), &config, AckStatus::Accepted)
+                .unwrap()
+        );
+        assert!(
+            !store
+                .insert_mcu_config(ts("2026-11-24T10:00:01Z"), &config, AckStatus::Accepted)
+                .unwrap()
+        );
         let (received, schema, fw, status, raw): (String, i64, String, i64, Vec<u8>) = store
             .conn()
             .query_row(

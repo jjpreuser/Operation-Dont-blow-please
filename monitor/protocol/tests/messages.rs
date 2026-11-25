@@ -3,11 +3,11 @@
 
 mod common;
 
-use common::{hex, CONFIG, CONFIG_REQUEST, HEARTBEAT, TELEMETRY_CORRECTED, TELEMETRY_PUBLISHED};
+use common::{CONFIG, CONFIG_REQUEST, HEARTBEAT, TELEMETRY_CORRECTED, TELEMETRY_PUBLISHED, hex};
 use protocol::frame::{Direction, MessageId};
 use protocol::messages::{
-    AckStatus, ConfigAck, DecodeError, FaultBits, FaultCode, FaultReset, Heartbeat, McuState,
-    Message, ResetAck, ResetResult, Telemetry, Validity, CONFIG_LEN, TELEMETRY_LEN,
+    AckStatus, CONFIG_LEN, ConfigAck, DecodeError, FaultBits, FaultCode, FaultReset, Heartbeat,
+    McuState, Message, ResetAck, ResetResult, TELEMETRY_LEN, Telemetry, Validity,
 };
 use protocol::parser::FrameParser;
 use std::num::NonZeroU32;

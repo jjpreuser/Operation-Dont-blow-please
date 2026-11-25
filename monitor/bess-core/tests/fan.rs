@@ -10,10 +10,10 @@
 
 mod common;
 
-use bess_core::fan::{interpolate, FanController, FanDemand, FanInputs, Reason};
+use bess_core::fan::{FanController, FanDemand, FanInputs, Reason, interpolate};
 use bess_core::link::LinkState;
-use common::{config_with, ms, telemetry_frame, BOOT1, BOOT2};
-use protocol::config::{Config, FanOfflineAction, FanPoint, FanTable, Table, TABLE_SLOTS};
+use common::{BOOT1, BOOT2, config_with, ms, telemetry_frame};
+use protocol::config::{Config, FanOfflineAction, FanPoint, FanTable, TABLE_SLOTS, Table};
 use protocol::messages::{FaultBits, FaultCode, McuState, Telemetry, Validity};
 use std::time::Instant;
 
@@ -339,7 +339,7 @@ fn curves_keep_tracking_while_e05_forces_100() {
     let e05 = |c| with_faults(frame(Some(c), Some(20.0)), &[5]);
     bench.online(&e05(30.0));
     bench.online(&e05(26.0)); // the battery curve goes OFF meanwhile
-                              // E05 clears inside the band: the curve is OFF, so 0 %, not 30 %.
+    // E05 clears inside the band: the curve is OFF, so 0 %, not 30 %.
     assert_eq!(bench.battery(28.5), demand(0, BATTERY));
 }
 

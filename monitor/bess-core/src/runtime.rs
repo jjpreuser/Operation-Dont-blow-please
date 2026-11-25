@@ -16,21 +16,21 @@
 //! The byte link is two channels, so tests run the same tasks against a
 //! simulated MCU without a serial port.
 
-use crate::db::{CoreKey, NewEvent, SystemType, APP_VERSION};
+use crate::db::{APP_VERSION, CoreKey, NewEvent, SystemType};
 use crate::link::{LinkState, LinkView};
 use crate::live::LiveState;
 use crate::tasks::aggregator::{self, AggregatorIo, AggregatorTask};
 use crate::tasks::detector::{self, DetectorIo, DetectorTask};
 use crate::tasks::fan::{self, FanIo, FanTask};
-use crate::tasks::hub::{self, Clock, SharedRing, BROADCAST, QUEUE};
+use crate::tasks::hub::{self, BROADCAST, Clock, QUEUE, SharedRing};
 use crate::tasks::link::{self as link_task, LinkIo, LinkTask};
 use crate::tasks::live::{self, LiveIo, LiveTask};
 use crate::tasks::maintenance::{self, MaintenanceIo, MaintenanceTask};
 use crate::tasks::uart::{self, UartRx, UartTx};
 use crate::wallclock::utc_text;
 use crate::writer::DbCommand;
-use jiff::tz::TimeZone;
 use jiff::Timestamp;
+use jiff::tz::TimeZone;
 use protocol::config::FirmwareVersion;
 use protocol::messages::FaultBits;
 use protocol::parser::ParserStats;
@@ -394,8 +394,8 @@ where
 pub fn open_serial(path: &std::path::Path) -> std::io::Result<std::fs::File> {
     use rustix::fs::{Mode, OFlags};
     use rustix::termios::{
-        tcflush, tcgetattr, tcsetattr, ControlModes, OptionalActions, QueueSelector,
-        SpecialCodeIndex,
+        ControlModes, OptionalActions, QueueSelector, SpecialCodeIndex, tcflush, tcgetattr,
+        tcsetattr,
     };
     let fd = rustix::fs::open(
         path,

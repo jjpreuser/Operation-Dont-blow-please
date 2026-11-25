@@ -11,7 +11,7 @@
 //! size guard (D3 §4). At shutdown the open snapshot is written with what
 //! it has.
 
-use super::hub::{now, send_db, sleep_until, McuFrame, SharedRing};
+use super::hub::{McuFrame, SharedRing, now, send_db, sleep_until};
 use crate::detector::{EventDetector, Frame, Write};
 use crate::writer::DbCommand;
 use protocol::messages::FaultBits;

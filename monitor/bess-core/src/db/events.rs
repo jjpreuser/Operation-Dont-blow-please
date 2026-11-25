@@ -9,7 +9,7 @@
 //! kind and severity (DD-82). Deciding *when* an event happens is the
 //! `event_detector`'s and the other tasks' job; this is the storage side.
 
-use super::{Result, Store, APP_VERSION};
+use super::{APP_VERSION, Result, Store};
 use crate::faults;
 use crate::signals::Signals;
 use crate::state::ShownState;
@@ -425,12 +425,16 @@ mod tests {
         let first = store.insert_event(&fault(5)).unwrap();
         let second = store.insert_event(&fault(5)).unwrap();
         assert_ne!(first, second, "no merging of repeats (DD-83)");
-        assert!(store
-            .clear_event(first, ts("2026-11-24T10:00:07Z"))
-            .unwrap());
-        assert!(!store
-            .clear_event(first, ts("2026-11-24T10:05:00Z"))
-            .unwrap());
+        assert!(
+            store
+                .clear_event(first, ts("2026-11-24T10:00:07Z"))
+                .unwrap()
+        );
+        assert!(
+            !store
+                .clear_event(first, ts("2026-11-24T10:05:00Z"))
+                .unwrap()
+        );
         assert!(!store.clear_event(9999, ts("2026-11-24T10:05:00Z")).unwrap());
         let cleared: Option<String> = store
             .conn()

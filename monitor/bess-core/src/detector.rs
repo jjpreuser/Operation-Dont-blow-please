@@ -264,20 +264,20 @@ impl EventDetector {
     /// after a fault for the open snapshot, appended about every 10 s.
     pub fn on_sample(&mut self, entry: &RingEntry) -> Vec<Write> {
         let mut out = Vec::new();
-        if let Some(s) = self.snapshot.as_mut() {
-            if entry.at > s.last_row_at && entry.at <= s.end_at {
-                s.last_row_at = entry.at;
-                s.pending.extend(SnapshotRow::from_entry(entry));
-            }
+        if let Some(s) = self.snapshot.as_mut()
+            && entry.at > s.last_row_at
+            && entry.at <= s.end_at
+        {
+            s.last_row_at = entry.at;
+            s.pending.extend(SnapshotRow::from_entry(entry));
         }
         self.expire(entry.at, &mut out);
-        if let Some(s) = self.snapshot.as_mut() {
-            if entry.at.saturating_duration_since(s.last_append_at) >= SNAPSHOT_APPEND_EVERY
-                && !s.pending.is_empty()
-            {
-                s.last_append_at = entry.at;
-                out.push(Write::SnapshotRows(std::mem::take(&mut s.pending)));
-            }
+        if let Some(s) = self.snapshot.as_mut()
+            && entry.at.saturating_duration_since(s.last_append_at) >= SNAPSHOT_APPEND_EVERY
+            && !s.pending.is_empty()
+        {
+            s.last_append_at = entry.at;
+            out.push(Write::SnapshotRows(std::mem::take(&mut s.pending)));
         }
         out
     }

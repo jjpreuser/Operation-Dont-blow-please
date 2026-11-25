@@ -6,7 +6,7 @@
 //! crash from a power loss (DD-30). The retention delete runs inside the
 //! daily job (DD-47). Still to come: the daily backup, keep 7 (S10.14).
 
-use super::hub::{now, send_db, Clock, TICK};
+use super::hub::{Clock, TICK, now, send_db};
 use crate::db::CoreKey;
 use crate::wallclock::utc_text;
 use crate::writer::DbCommand;

@@ -12,7 +12,7 @@
 
 use crate::crc::crc16;
 use crate::frame::{
-    Direction, Frame, MessageId, HEADER, MAX_FRAME_LEN, OVERHEAD, PREFIX_LEN, PROTOCOL_VERSION,
+    Direction, Frame, HEADER, MAX_FRAME_LEN, MessageId, OVERHEAD, PREFIX_LEN, PROTOCOL_VERSION,
 };
 use std::fmt;
 

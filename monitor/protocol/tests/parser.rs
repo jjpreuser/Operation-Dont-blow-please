@@ -1,7 +1,7 @@
 mod common;
 
 use common::*;
-use protocol::frame::{encode, Direction, MessageId};
+use protocol::frame::{Direction, MessageId, encode};
 use protocol::parser::{FrameParser, ParserStats};
 
 fn pi() -> FrameParser {

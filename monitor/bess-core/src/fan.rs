@@ -244,7 +244,7 @@ impl FanController {
                 return FanDemand {
                     duty_pct: 100,
                     reason: Reason::NoConfig,
-                }
+                };
             }
         };
         if link == LinkState::Offline {

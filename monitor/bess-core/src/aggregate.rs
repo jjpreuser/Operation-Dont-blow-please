@@ -14,7 +14,7 @@
 //! period, so missing samples are not filled in and a clock step cannot add
 //! or remove charge (DD-46).
 
-use crate::signals::{Signals, CURRENT_A, PACK_V, SIGNAL_COUNT};
+use crate::signals::{CURRENT_A, PACK_V, SIGNAL_COUNT, Signals};
 use crate::wallclock::add_ms;
 use jiff::Timestamp;
 use std::time::Duration;
@@ -265,9 +265,10 @@ mod tests {
         let mut agg = Aggregator::new();
         for s in 0..600 {
             let v = 13.0 + f64::from(s % 3) * 0.1; // 13.0, 13.1, 13.2
-            assert!(agg
-                .add(at(base, i64::from(s)), &signals(v, 2.0), SECOND)
-                .is_none());
+            assert!(
+                agg.add(at(base, i64::from(s)), &signals(v, 2.0), SECOND)
+                    .is_none()
+            );
         }
         // The first sample at the boundary closes the interval.
         let row = agg.add(at(base, 600), &signals(13.0, 2.0), SECOND).unwrap();
