@@ -21,6 +21,7 @@ mod pipeline;
 mod sim;
 mod ui;
 
+use bess_core::csv::Format;
 use bess_core::db::StoredCounts;
 use bess_core::history::Tier;
 use bess_core::tasks::hub;
@@ -49,6 +50,47 @@ struct ExportPanel {
     counts: Option<(Instant, Result<StoredCounts, String>)>,
 }
 
+impl ExportPanel {
+    /// The range, resolution and Excel format boxes.
+    fn choices(&mut self, ui: &mut egui::Ui) {
+        egui::ComboBox::from_label("range")
+            .selected_text(SPANS[self.span].0)
+            .show_ui(ui, |ui| {
+                for (i, (label, _)) in SPANS.iter().enumerate() {
+                    ui.selectable_value(&mut self.span, i, *label);
+                }
+            });
+        egui::ComboBox::from_label("resolution")
+            .selected_text(match self.coarser {
+                None => "automatic",
+                Some(Tier::Ring) => "1 s",
+                Some(Tier::TenMin) => "10-min",
+                Some(Tier::Daily) => "daily",
+            })
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut self.coarser, None, "automatic");
+                ui.selectable_value(&mut self.coarser, Some(Tier::TenMin), "10-min at least");
+                ui.selectable_value(&mut self.coarser, Some(Tier::Daily), "daily");
+            });
+        let format = &mut self.sources.format;
+        egui::ComboBox::from_label("Excel number settings")
+            .selected_text(format_name(*format))
+            .show_ui(ui, |ui| {
+                for f in [Format::English, Format::Dutch] {
+                    ui.selectable_value(format, f, format_name(f));
+                }
+            });
+    }
+}
+
+/// The CSV format as the panel names it (DD-62).
+fn format_name(format: Format) -> &'static str {
+    match format {
+        Format::English => "English: , between cells, . decimal",
+        Format::Dutch => "Dutch: ; between cells, , decimal",
+    }
+}
+
 struct App {
     /// Runs the core and the demo MCU; dropped when the window closes.
     runtime: tokio::runtime::Runtime,
@@ -74,6 +116,8 @@ impl App {
                 db: preview.db.clone(),
                 dir: data.join("exports"),
                 tz: jiff::tz::TimeZone::system(),
+                // Matches this PC's Excel, so the columns split on double-click.
+                format: export::system_format(),
             },
             span: 1,
             coarser: None,
@@ -169,25 +213,7 @@ impl App {
                 format!("No database file, only the ring buffer: {error}"),
             );
         }
-        egui::ComboBox::from_label("range")
-            .selected_text(SPANS[e.span].0)
-            .show_ui(ui, |ui| {
-                for (i, (label, _)) in SPANS.iter().enumerate() {
-                    ui.selectable_value(&mut e.span, i, *label);
-                }
-            });
-        egui::ComboBox::from_label("resolution")
-            .selected_text(match e.coarser {
-                None => "automatic",
-                Some(Tier::Ring) => "1 s",
-                Some(Tier::TenMin) => "10-min",
-                Some(Tier::Daily) => "daily",
-            })
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut e.coarser, None, "automatic");
-                ui.selectable_value(&mut e.coarser, Some(Tier::TenMin), "10-min at least");
-                ui.selectable_value(&mut e.coarser, Some(Tier::Daily), "daily");
-            });
+        e.choices(ui);
         let now = jiff::Timestamp::now();
         let span_ms = SPANS[e.span].1;
         ui.label(format!(

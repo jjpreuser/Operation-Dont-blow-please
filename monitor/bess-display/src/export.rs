@@ -6,6 +6,7 @@
 //! data can be looked at in Excel. The data is the real core's: the ring
 //! buffer it fills and the database its `db_writer` thread writes.
 
+use bess_core::csv::{Format, Options};
 use bess_core::db::{Store, StoredCounts};
 use bess_core::history::{self, Range, SignalSet, Tier, choose_tier};
 use bess_core::tasks::hub::SharedRing;
@@ -99,9 +100,20 @@ pub struct Sources {
     pub db: Option<PathBuf>,
     pub dir: PathBuf,
     pub tz: TimeZone,
+    /// The Excel number settings the files are for (DD-62).
+    pub format: Format,
 }
 
 impl Sources {
+    /// Every signal, in the chosen format.
+    fn options(&self) -> Options {
+        Options {
+            tz: self.tz.clone(),
+            signals: SignalSet::all(),
+            format: self.format,
+        }
+    }
+
     fn store(&self) -> Result<Store, String> {
         let db = self
             .db
@@ -134,14 +146,14 @@ impl Sources {
         let range = range(span_ms, now);
         let tier = choose_tier(&range, now, coarser);
         let name = format!("bess-{}-{}.csv", tier_file(tier), stamp(now, &self.tz));
-        let all = SignalSet::all();
+        let options = self.options();
         let mut file = Pending::new(self.dir.join(name));
         let rows = match tier.table() {
             None => {
                 // Copied out, so the ring buffer is locked only briefly.
                 let rows = history::ring_rows(&self.ring.lock(), &range);
                 if !rows.is_empty() {
-                    bess_core::csv::write_samples(file.open()?, &self.tz, &all, &rows)
+                    bess_core::csv::write_samples(file.open()?, &options, &rows)
                         .map_err(|e| e.to_string())?;
                 }
                 rows.len()
@@ -156,7 +168,7 @@ impl Sources {
                     0
                 } else {
                     store
-                        .write_csv(table, &range, &self.tz, &all, file.open()?)
+                        .write_csv(table, &range, &options, file.open()?)
                         .map_err(|e| e.to_string())?
                 }
             }
@@ -182,7 +194,7 @@ impl Sources {
         let name = format!("bess-snapshot-{id}-{}.csv", stamp(now, &self.tz));
         let mut file = Pending::new(self.dir.join(name));
         let rows = store
-            .write_snapshot_csv(id, &self.tz, &SignalSet::all(), file.open()?)
+            .write_snapshot_csv(id, &self.options(), file.open()?)
             .map_err(|e| e.to_string())?
             .unwrap_or(0);
         Ok(Exported {
@@ -233,6 +245,38 @@ impl Pending {
     }
 }
 
+/// The format for this PC's Excel. Windows keeps the decimal sign of its
+/// number settings as `sDecimal` under `HKCU\Control Panel\International`,
+/// and Excel splits a `.csv` by those settings (D12). Elsewhere, or when it
+/// cannot be read, the default English format.
+#[must_use]
+pub fn system_format() -> Format {
+    if !cfg!(windows) {
+        return Format::default();
+    }
+    std::process::Command::new("reg")
+        .args([
+            "query",
+            r"HKCU\Control Panel\International",
+            "/v",
+            "sDecimal",
+        ])
+        .output()
+        .ok()
+        .and_then(|out| reg_value(&String::from_utf8_lossy(&out.stdout), "sDecimal"))
+        .map_or_else(Format::default, |sign| Format::for_decimal_sign(&sign))
+}
+
+/// The value of `name` in the output of `reg query`, whose line reads
+/// `    sDecimal    REG_SZ    ,`.
+fn reg_value(output: &str, name: &str) -> Option<String> {
+    output.lines().find_map(|line| {
+        let mut words = line.split_whitespace();
+        (words.next()? == name && words.next()? == "REG_SZ")
+            .then(|| words.collect::<Vec<_>>().join(" "))
+    })
+}
+
 /// Opens a file or folder with the desktop's default app (Excel for a
 /// `.csv` on a TE laptop, the file manager for a folder).
 ///
@@ -275,7 +319,29 @@ mod tests {
             db,
             dir: dir.join("exports"),
             tz: TimeZone::get("Europe/Amsterdam").unwrap(),
+            format: Format::English,
         }
+    }
+
+    #[test]
+    fn the_dutch_format_splits_on_semicolons() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = sources(dir.path(), Some(db_with_10min(dir.path())));
+        s.format = Format::Dutch;
+        let done = s.export(SPANS[2].1, None, ts(NOW)).unwrap();
+        let text = std::fs::read_to_string(done.path.unwrap()).unwrap();
+        assert!(text.starts_with("timestamp_utc;time_local;sample_count;pack_v_min;"));
+        assert!(text.contains("2026-11-25 10:10:00;600;13,000;13,100;13,200"));
+    }
+
+    #[test]
+    fn the_windows_decimal_sign_is_read_from_reg_query() {
+        let dutch = "\r\nHKEY_CURRENT_USER\\Control Panel\\International\r\n    sDecimal    REG_SZ    ,\r\n\r\n";
+        assert_eq!(reg_value(dutch, "sDecimal").as_deref(), Some(","));
+        let english = "    sDecimal    REG_SZ    .";
+        assert_eq!(reg_value(english, "sDecimal").as_deref(), Some("."));
+        assert_eq!(reg_value("ERROR: not found", "sDecimal"), None);
+        assert_eq!(reg_value("    sList    REG_SZ    ;", "sDecimal"), None);
     }
 
     fn fill_ring(ring: &SharedRing, seconds: u32) {

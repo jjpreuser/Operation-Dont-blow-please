@@ -127,7 +127,7 @@ flowchart TB
 
 - The user can choose a coarser resolution than the default (e.g. daily for the last week), never a finer one than exists.
 - Gaps: points are returned with their `sample_count`; the graph breaks the line where an interval is missing (DD-10).
-- **CSV** (S10.11, S10.13): UTF-8 (ASCII only in practice); comma-separated, `.` as decimal point, for English-locale Excel (DD-62, [csv-excel-test.md](csv-excel-test.md)); header row with units in the column names (`pack_v`, `t_cell_c`, … as in D2). First column `timestamp_utc` (ISO 8601, S10.10), second column `time_local` as `YYYY-MM-DD HH:MM:SS`, which Excel recognises as a date. Aggregates export `<signal>_min/_avg/_max` and `sample_count`. Streamed from a read-only connection, so a large export does not block logging.
+- **CSV** (S10.11, S10.13): UTF-8 (ASCII only in practice); two formats chosen on export (DD-62, [csv-excel-test.md](csv-excel-test.md)): English (default) comma-separated with `.` as decimal point, Dutch `;`-separated with decimal `,`; header row with units in the column names (`pack_v`, `t_cell_c`, … as in D2). First column `timestamp_utc` (ISO 8601, S10.10), second column `time_local` as `YYYY-MM-DD HH:MM:SS`, which Excel recognises as a date. Aggregates export `<signal>_min/_avg/_max` and `sample_count`. Streamed from a read-only connection, so a large export does not block logging.
 - Snapshots are exported per fault from the fault log (1 s rows).
 - Details settled while writing it (DD-101, proposed 2026-11-25): the tier follows the start of the range and is used for all of it; an aggregate row is returned when its interval overlaps the range; every tier gives the same points (1 s points have min = avg = max); ring buffer samples without a valid clock are left out; the open 10-min interval and today's daily record are not filled in. CSV: fixed decimals per signal (the wire resolution), no `-0`, aggregates also export Ah/Wh (daily also `equiv_cycles`), 1 s exports have a `state` column, the signals can be chosen.
 
@@ -158,7 +158,7 @@ Agreed 2026-11-02, except DD-75 (from the D8 sweep), parked 2026-11-02; see [dec
 
 Open:
 
-- ~~Excel and locale (S10.13)~~: resolved by D12 ([csv-excel-test.md](csv-excel-test.md)): the CSV targets English-locale Excel, no `sep=` line (DD-62, agreed 2026-10-29); in Dutch-locale Excel the comma/`.` file opens as one column, and `sep=,` silently turns 13.284 into 13284. A Dutch-locale variant is parked.
+- ~~Excel and locale (S10.13)~~: resolved by D12 ([csv-excel-test.md](csv-excel-test.md)): the CSV targets English-locale Excel, no `sep=` line (DD-62, agreed 2026-10-29); in Dutch-locale Excel the comma/`.` file opens as one column, and `sep=,` silently turns 13.284 into 13284. The Dutch-locale variant, parked then, is built since 2026-11-25 as a second format chosen on export.
 - **Backup target:** USB path and whether a USB stick is part of the cabinet build (S10.14 allows a second SD file).
 - **SoH** (`soh` table): method proposed in D11 ([soh.md](soh.md), DD-63 to DD-65): Ah charged from `V_low` up to the BMS charge-stop voltage during the 8 A charge, computed by `aggregator` from the 1 s samples; not agreed yet.
 - **Cloud heartbeat (S11.15):** the Pi is to send a heartbeat to the cloud every 60 s, so the website can show "Offline" with the last-seen time after 5 min. Not designed yet.

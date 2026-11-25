@@ -1,6 +1,6 @@
 # D12 – CSV export: Excel locale test
 
-Status: **Tested 2026-10-29**; DD-62 agreed 2026-10-29 ([decisions.md](decisions.md)). The CSV targets English-locale Excel; a Dutch-locale variant is parked. Builds on D3 ([data-lifecycle.md](data-lifecycle.md) §6): CSV with `timestamp_utc` + `time_local` and units in the column names (DD-49).
+Status: **Tested 2026-10-29**; DD-62 agreed 2026-10-29 ([decisions.md](decisions.md)). Since 2026-11-25 the export has both formats, chosen on export: English (default) and the Dutch-locale variant (variant C). Builds on D3 ([data-lifecycle.md](data-lifecycle.md) §6): CSV with `timestamp_utc` + `time_local` and units in the column names (DD-49).
 
 Requirements: S10.11 (CSV export), S10.13 (CSV opens in Excel with one column per value).
 
@@ -30,7 +30,7 @@ Results:
 
 The CSV export targets English-locale Excel: one format, comma-separated, `.` as decimal point, UTF-8 without BOM (ASCII only), CRLF line ends, no `sep=` line, columns as in D3. Agreed 2026-10-29.
 
-Parked (detail for later): an optional Dutch-locale variant (`;` and decimal `,`, variant C above), selectable on export. Until then a Dutch-locale user opens the file with Data → From Text/CSV and chooses comma and `.`.
+Built 2026-11-25 (Jelle: the export must split into columns in his Dutch-locale Excel; it was parked until then): the Dutch-locale variant (`;` and decimal `,`, variant C above), selectable on export (`bess_core::csv::Format`). The display preview starts with the format that matches the PC's Windows decimal sign (`sDecimal`); the dashboard download will offer the same choice.
 
 ## 3. Still to check
 

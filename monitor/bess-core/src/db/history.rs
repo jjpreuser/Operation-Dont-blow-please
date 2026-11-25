@@ -10,11 +10,10 @@
 use super::{Result, Store, StoreError};
 use crate::aggregate::{INTERVAL_MS, Stat};
 use crate::csv;
-use crate::history::{AggTable, Point, Range, SampleRow, SignalSet, Totals};
+use crate::history::{AggTable, Point, Range, SampleRow, Totals};
 use crate::signals::{SIGNAL_COLUMNS, SIGNAL_COUNT};
 use crate::wallclock::{add_ms, parse_utc_text, utc_text};
 use jiff::Timestamp;
-use jiff::tz::TimeZone;
 use rusqlite::{OptionalExtension, Row};
 use std::fmt::Write as _;
 use std::sync::OnceLock;
@@ -168,14 +167,13 @@ impl Store {
         &self,
         table: AggTable,
         range: &Range,
-        tz: &TimeZone,
-        signals: &SignalSet,
+        options: &csv::Options,
         out: &mut impl std::io::Write,
     ) -> Result<usize> {
-        out.write_all(csv::aggregate_header(table, signals).as_bytes())?;
+        out.write_all(csv::aggregate_header(table, options).as_bytes())?;
         let mut count = 0;
         self.for_each_point(table, range, |p| {
-            out.write_all(csv::aggregate_line(&p, table, tz, signals).as_bytes())?;
+            out.write_all(csv::aggregate_line(&p, table, options).as_bytes())?;
             count += 1;
             Ok(())
         })?;
@@ -266,17 +264,16 @@ impl Store {
     pub fn write_snapshot_csv(
         &self,
         snapshot_id: i64,
-        tz: &TimeZone,
-        signals: &SignalSet,
+        options: &csv::Options,
         out: &mut impl std::io::Write,
     ) -> Result<Option<usize>> {
         if !self.snapshot_exists(snapshot_id)? {
             return Ok(None);
         }
-        out.write_all(csv::sample_header(signals).as_bytes())?;
+        out.write_all(csv::sample_header(options).as_bytes())?;
         let mut count = 0;
         self.for_each_snapshot_row(snapshot_id, |row| {
-            out.write_all(csv::sample_line(&row, tz, signals).as_bytes())?;
+            out.write_all(csv::sample_line(&row, options).as_bytes())?;
             count += 1;
             Ok(())
         })?;
@@ -302,9 +299,17 @@ impl Store {
 mod tests {
     use super::*;
     use crate::aggregate::AggRow;
-    use crate::history::{Tier, choose_tier};
+    use crate::history::{SignalSet, Tier, choose_tier};
     use crate::test_util::{amsterdam, close, ts};
     use jiff::civil::date;
+
+    fn opts(signals: SignalSet) -> csv::Options {
+        csv::Options {
+            tz: amsterdam(),
+            signals,
+            format: csv::Format::English,
+        }
+    }
 
     fn range(from: &str, to: &str) -> Range {
         Range {
@@ -507,13 +512,7 @@ mod tests {
         let r = range("2026-11-25T00:00:00Z", "2026-11-26T00:00:00Z");
         let mut out = Vec::new();
         let count = store
-            .write_csv(
-                AggTable::TenMin,
-                &r,
-                &amsterdam(),
-                &SignalSet::all(),
-                &mut out,
-            )
+            .write_csv(AggTable::TenMin, &r, &opts(SignalSet::all()), &mut out)
             .unwrap();
         assert_eq!(count, 3);
         let (header, rows) = parse(&out);
@@ -543,8 +542,7 @@ mod tests {
             .write_csv(
                 AggTable::TenMin,
                 &range("2026-11-25T00:00:00Z", "2026-11-26T00:00:00Z"),
-                &amsterdam(),
-                &SignalSet::only(["soc_pct", "pack_v"]).unwrap(),
+                &opts(SignalSet::only(["soc_pct", "pack_v"]).unwrap()),
                 &mut out,
             )
             .unwrap();
@@ -581,13 +579,7 @@ mod tests {
         assert_eq!(tier, Tier::Daily);
         let mut out = Vec::new();
         let count = store
-            .write_csv(
-                tier.table().unwrap(),
-                &r,
-                &amsterdam(),
-                &SignalSet::all(),
-                &mut out,
-            )
+            .write_csv(tier.table().unwrap(), &r, &opts(SignalSet::all()), &mut out)
             .unwrap();
         assert_eq!(count, 3);
         let (header, rows) = parse(&out);
@@ -604,8 +596,7 @@ mod tests {
             .write_csv(
                 AggTable::TenMin,
                 &range("2026-11-24T00:00:00Z", "2026-11-24T01:00:00Z"),
-                &amsterdam(),
-                &SignalSet::all(),
+                &opts(SignalSet::all()),
                 &mut out,
             )
             .unwrap();
@@ -628,8 +619,7 @@ mod tests {
         let result = store.write_csv(
             AggTable::TenMin,
             &range("2026-11-25T00:00:00Z", "2026-11-26T00:00:00Z"),
-            &amsterdam(),
-            &SignalSet::all(),
+            &opts(SignalSet::all()),
             &mut Broken,
         );
         assert!(matches!(result, Err(StoreError::Io(_))));
@@ -680,8 +670,7 @@ mod tests {
         let count = store
             .write_snapshot_csv(
                 id,
-                &amsterdam(),
-                &SignalSet::only(["pack_v", "current_a"]).unwrap(),
+                &opts(SignalSet::only(["pack_v", "current_a"]).unwrap()),
                 &mut out,
             )
             .unwrap();
@@ -713,12 +702,30 @@ mod tests {
     }
 
     #[test]
+    fn the_dutch_snapshot_csv_has_semicolons_and_decimal_commas() {
+        let (store, id) = store_with_snapshot();
+        let mut out = Vec::new();
+        let options = csv::Options {
+            format: csv::Format::Dutch,
+            ..opts(SignalSet::only(["pack_v", "current_a"]).unwrap())
+        };
+        store.write_snapshot_csv(id, &options, &mut out).unwrap();
+        assert_eq!(
+            std::str::from_utf8(&out).unwrap(),
+            "timestamp_utc;time_local;state;pack_v;current_a\r\n\
+             2026-11-25T10:00:00.000Z;2026-11-25 11:00:00;DISCHARGING;12,900;-3,50\r\n\
+             2026-11-25T10:00:01.000Z;2026-11-25 11:00:01;FAULT;;-3,50\r\n\
+             2026-11-25T10:00:02.000Z;2026-11-25 11:00:02;FAULT;12,500;-3,50\r\n"
+        );
+    }
+
+    #[test]
     fn a_missing_snapshot_writes_nothing() {
         let (store, id) = store_with_snapshot();
         let mut out = Vec::new();
         assert_eq!(
             store
-                .write_snapshot_csv(id + 1, &amsterdam(), &SignalSet::all(), &mut out)
+                .write_snapshot_csv(id + 1, &opts(SignalSet::all()), &mut out)
                 .unwrap(),
             None
         );
@@ -743,13 +750,7 @@ mod tests {
             .unwrap();
         let mut out = Vec::new();
         let count = reader
-            .write_csv(
-                AggTable::TenMin,
-                &r,
-                &amsterdam(),
-                &SignalSet::all(),
-                &mut out,
-            )
+            .write_csv(AggTable::TenMin, &r, &opts(SignalSet::all()), &mut out)
             .unwrap();
         assert_eq!(count, 2);
     }

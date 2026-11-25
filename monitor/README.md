@@ -64,7 +64,7 @@ in the temp folder (or `--data DIR`). It is kept between runs, so 10-min records
 (one every 10 minutes, and a partial one when the window closes) and daily
 records (at 00:00 local, or at start-up for missed days) build up. The
 **Export (CSV)** section of the demo panel writes what is stored to `exports/`
-in the same folder, in the dashboard's CSV format (DD-62, DD-101): pick a range
+in the same folder, in the dashboard's CSV format (DD-62, DD-101; English `,` and `.` or Dutch `;` and `,`, preset to what this PC's Excel uses, so the values split into columns): pick a range
 (the last hour comes from the 1 s ring buffer, up to 30 days from the 10-min
 records, older from the daily records) or the newest fault snapshot, then
 **Open file** opens it in the default app (Excel). Delete the folder to start
